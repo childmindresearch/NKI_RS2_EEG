@@ -1,25 +1,26 @@
-[project]
-name = "app-name"
+[tool.poetry]
+name = "nki-rs2-eeg"
 version = "0.1.0"
-description = "A beautiful description."
-authors = [
-  {name = "CMI DAIR", email = "dair@childmind.org"}
-]
+description = "EEG data quality assessment for the NKI Rockland Sample 2 dataset."
+authors = ["CMI DAIR <dair@childmind.org>"]
 license = "LGPL-2.1-only"
 readme = "README.md"
-requires-python = ">=3.12"
-dependencies = []
+packages = [{include = "nki_rs2_eeg", from = "src"}]
 
-[dependency-groups]
-dev = [
-  "pytest>=8.3.4",
-  "mypy>=1.13.0",
-  "pre-commit>=4.0.1",
-  "pytest-cov>=6.0.0",
-  "ruff>=0.8.1",
-  "deptry>=0.23.0"
-]
-docs = ["pdoc>=15.0.0"]
+[tool.poetry.dependencies]
+python = "^3.12"
+mne = ">=1.0.0"
+
+[tool.poetry.group.dev.dependencies]
+pytest = ">=8.3.4"
+mypy = ">=1.13.0"
+pre-commit = ">=4.0.1"
+pytest-cov = ">=6.0.0"
+ruff = ">=0.8.1"
+deptry = ">=0.23.0"
+
+[tool.poetry.group.docs.dependencies]
+pdoc = ">=15.0.0"
 
 [tool.pytest.ini_options]
 pythonpath = ["src"]
@@ -47,5 +48,5 @@ convention = "google"
 "tests/**/*.py" = []
 
 [build-system]
-requires = ["uv_build>=0.9.3,<0.10.0"]
-build-backend = "uv_build"
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
