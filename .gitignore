@@ -1,6 +1,18 @@
 # MacOS system files
 .DS_Store
 
+# EEG data files — never commit raw or processed data
+*.nwb
+*.fif
+
+# Data and figure directories — keep directory structure but not the data
+data/raw/*
+data/derivatives/*
+figures/*
+!data/raw/.gitkeep
+!data/derivatives/.gitkeep
+!figures/.gitkeep
+
 # Ruff tmp files
 .ruff_cache
 
