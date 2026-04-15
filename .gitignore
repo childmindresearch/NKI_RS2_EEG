@@ -7,6 +7,7 @@
 
 # Data and figure directories — keep directory structure but not the data
 data/raw/*
+data/caps/*
 data/derivatives/*
 figures/*
 !data/raw/.gitkeep

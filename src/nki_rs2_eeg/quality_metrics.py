@@ -11,7 +11,6 @@ Typical usage::
 
 or, to process a single subject::
 
-    python -m nki_rs2_eeg.quality_metrics --subject sub-0001
 """
 
 from __future__ import annotations
@@ -19,11 +18,14 @@ from __future__ import annotations
 import argparse
 import json
 import logging
+import os
 import pathlib
 from typing import Any
 
 import mne
 import numpy as np
+import pandas as pd
+import pynwb
 
 logger = logging.getLogger(__name__)
 
@@ -58,11 +60,227 @@ def _find_repo_root(start: pathlib.Path) -> pathlib.Path:
 _REPO_ROOT = _find_repo_root(pathlib.Path(__file__).parent)
 RAW_DIR = _REPO_ROOT / "data" / "raw"
 DERIVATIVES_DIR = _REPO_ROOT / "data" / "derivatives"
-
+CAP_DIR = _REPO_ROOT / "data" / "caps"
+SESSION_ID = "MOBI2C"
+TASK_ID = "passivepresent"
+RUN_ID = "01"
 
 # ---------------------------------------------------------------------------
 # Public API
 # ---------------------------------------------------------------------------
+
+
+
+def annotate_blinks(raw: mne.io.Raw, ch_name: list[str] = ["Fp1", "Fp2"]) -> mne.Annotations:
+    """Annotate the blinks in the EEG signal.
+
+    Args:
+        raw (mne.io.Raw): The raw EEG data in mne format.
+        ch_name (list[str]): The channels to use for the EOG. Default is
+                            ["Fp1", "Fp2"]. I would suggest to use the
+                            channels that are the most frontal (just above
+                            the eyes). In the case of an EGI system the
+                            channels would be "E25" and "E8".
+
+    Returns:
+        mne.Annotations: The annotations object containing the blink events.
+    """
+    eog_epochs = mne.preprocessing.create_eog_epochs(raw, ch_name=ch_name)
+    blink_annotations = mne.annotations_from_events(
+        eog_epochs.events,
+        raw.info["sfreq"],
+        event_desc={eog_epochs.events[0, 2]: "blink"},
+    )
+    return blink_annotations
+
+
+def annotate_muscle(raw: mne.io.Raw) -> mne.Annotations:
+    """Annotate muscle artifacts in the EEG signal.
+
+    Args:        raw (mne.io.Raw): The raw EEG data in mne format.
+    Returns:        mne.Annotations: The annotations object containing the muscle artifact events.
+    """
+    muscle_annotations, _ = mne.preprocessing.annotate_muscle_zscore(raw, 
+        threshold=6, # this needs to be calibrated for the entire dataset
+        ch_type='eeg', 
+        min_length_good=0.1, 
+        filter_freq=(95, 120), 
+        )
+
+    return muscle_annotations
+
+
+def compute_autocorrelation(data: np.ndarray, max_lag: int) -> np.ndarray:
+    """Compute autocorrelation for a 1D signal.
+    
+    Parameters:
+    -----------
+    data : array, shape (n_samples,)
+        EEG data for single channel
+    max_lag : int
+        Maximum lag to compute (in samples)
+    
+    Returns:
+    --------
+    autocorr : array, shape (max_lag+1,)
+        Autocorrelation values from lag 0 to max_lag
+    """
+    # Normalize the signal
+    data_normalized = (data - np.mean(data)) / np.std(data)
+    
+    # Compute autocorrelation
+    autocorr = np.correlate(data_normalized, data_normalized, mode='full')
+    autocorr = autocorr / autocorr[len(autocorr)//2]  # Normalize by lag 0
+    
+    # Take only positive lags
+    center = len(autocorr) // 2
+    autocorr = autocorr[center:center + max_lag + 1]
+    
+    return autocorr
+
+
+def sliding_window_autocorr(channel_data: np.ndarray, window_size: int, hop_size: int, max_lag: int) -> np.ndarray:
+    """Compute autocorrelation with sliding windows.
+    
+    Parameters:
+    -----------
+    channel_data : array, shape (n_samples,)
+        EEG data for single channel
+    window_size : int
+        Window size in samples
+    hop_size : int
+        How many samples to slide the window
+    max_lag : int
+        Maximum lag to compute
+    
+    Returns:
+    --------
+    autocorr_windows : array, shape (n_windows, max_lag+1)
+        Autocorrelation for each window
+    """
+    n_samples = len(channel_data)
+    n_windows = (n_samples - window_size) // hop_size + 1
+    
+    autocorr_windows = []
+    
+    for i in range(n_windows):
+        start = i * hop_size
+        end = start + window_size
+        
+        if end > n_samples:
+            break
+            
+        window = channel_data[start:end]
+        autocorr = compute_autocorrelation(window, max_lag)
+        autocorr_windows.append(autocorr)
+    
+    return np.array(autocorr_windows)
+
+
+def assess_channel_quality(
+    autocorr_windows: np.ndarray,
+    threshold: float = 0.3,
+    lag_start: int = 10,
+) -> tuple[bool, float]:
+    """Assess signal quality based on autocorrelation.
+    
+    Parameters:
+    -----------
+    autocorr_windows : array, shape (n_windows, max_lag+1)
+        Autocorrelation values
+    threshold : float
+        Threshold for "bad" autocorrelation
+    lag_start : int
+        Start checking from this lag (skip lag 0 which is always 1.0)
+    
+    Returns:
+    --------
+    is_clean : bool
+        True if channel is clean
+    max_autocorr : float
+        Maximum autocorrelation value (excluding early lags)
+    """
+    # Average across windows
+    mean_autocorr = np.mean(autocorr_windows, axis=0)
+    
+    # Check autocorrelation after lag_start (ignore very short lags)
+    max_autocorr = np.max(np.abs(mean_autocorr[lag_start:]))
+    
+    is_clean = max_autocorr < threshold
+    
+    return is_clean, max_autocorr
+
+
+def analyze_autocorr_quality(eeg_data: np.ndarray, fs: float, window_seconds: float = 2, hop_seconds: float = 1, 
+                        max_lag_ms: float = 500, threshold: float = 0.3) -> dict[str, Any]:
+    """Analyze EEG signal quality across all channels.
+    
+    Parameters:
+    -----------
+    eeg_data : array, shape (n_channels, n_samples)
+        EEG data
+    fs : float
+        Sampling frequency in Hz
+    window_seconds : float
+        Window size in seconds
+    hop_seconds : float
+        Hop size in seconds
+    max_lag_ms : float
+        Maximum lag in milliseconds
+    threshold : float
+        Autocorrelation threshold for quality
+    
+    Returns:
+    --------
+    results : dict
+        Dictionary with quality metrics
+    """
+    n_channels, n_samples = eeg_data.shape
+    
+    # Convert to samples
+    window_size = int(window_seconds * fs)
+    hop_size = int(hop_seconds * fs)
+    max_lag = int(max_lag_ms * fs / 1000)
+    
+    # Store results
+    channel_quality = []
+    max_autocorrs = []
+    all_autocorrs = []
+    
+    print(f"Analyzing {n_channels} channels...")
+    
+    for ch in range(n_channels):
+        # Compute sliding window autocorrelation
+        autocorr_windows = sliding_window_autocorr(
+            eeg_data[ch, :], window_size, hop_size, max_lag
+        )
+        
+        # Assess quality
+        is_clean, max_ac = assess_channel_quality(
+            autocorr_windows, threshold=threshold
+        )
+        
+        channel_quality.append(is_clean)
+        max_autocorrs.append(max_ac)
+        
+        # Store mean autocorr for this channel
+        mean_autocorr = np.mean(autocorr_windows, axis=0)
+        all_autocorrs.append(mean_autocorr)
+    
+    # Summarize across channels
+    results = {
+        'channel_quality': np.array(channel_quality),
+        'max_autocorrs': np.array(max_autocorrs),
+        'all_autocorrs': np.array(all_autocorrs),
+        'bad_channels_ac': np.where(~np.array(channel_quality))[0],
+        'percent_clean': np.mean(channel_quality) * 100,
+        'n_bad_channels_ac': np.sum(~np.array(channel_quality)),
+        'worst_autocorr': np.max(max_autocorrs),
+        'lags_ms': np.arange(max_lag + 1) * 1000 / fs
+    }
+    
+    return results
+
 
 
 def compute_metrics(raw: mne.io.BaseRaw) -> dict[str, Any]:
@@ -109,10 +327,6 @@ def compute_metrics(raw: mne.io.BaseRaw) -> dict[str, Any]:
         psd_band_power[band_name] = float(np.mean(psds[:, idx]))
 
     return {
-        "n_channels": len(eeg_picks),
-        "duration_s": raw.times[-1],
-        "sampling_freq_hz": raw.info["sfreq"],
-        "channel_names": [raw.ch_names[i] for i in eeg_picks],
         "channel_variance": channel_variance,
         "psd_band_power": psd_band_power,
         "n_annotations": len(raw.annotations),
@@ -120,7 +334,7 @@ def compute_metrics(raw: mne.io.BaseRaw) -> dict[str, Any]:
     }
 
 
-def process_subject(subject_id: str) -> None:
+def process_subject(subject_id: str, session_id: str, task_id: str, run_id: str) -> None:
     """Load raw EEG data for one participant and save quality metrics.
 
     The function expects a file named ``<subject_id>_task-rest_eeg.nwb``
@@ -129,6 +343,9 @@ def process_subject(subject_id: str) -> None:
 
     Args:
         subject_id: Subject identifier string (e.g. ``"sub-0001"``).
+        session_id: Session identifier string (e.g. ``"MOBI2C"``).
+        task_id: Task identifier string (e.g. ``"passivepresent"``).
+        run_id: Run identifier string (e.g. ``"01"``).
 
     Raises:
         FileNotFoundError: If no supported EEG file is found for the subject.
@@ -136,15 +353,67 @@ def process_subject(subject_id: str) -> None:
     DERIVATIVES_DIR.mkdir(parents=True, exist_ok=True)
 
     # Prefer NWB, fall back to FIF
-    nwb_path = RAW_DIR / f"{subject_id}_task-rest_eeg.nwb"
-    fif_path = RAW_DIR / f"{subject_id}_task-rest_eeg_raw.fif"
+    nwb_path = (
+        RAW_DIR
+        / f"{subject_id}"
+        / f"ses-{session_id}"
+        / f"{subject_id}_ses-{session_id}_task-{task_id}_run-{run_id}_MoBI.nwb"
+    )
 
     if nwb_path.exists():
         logger.info("Loading NWB file: %s", nwb_path)
-        raw = mne.io.read_raw(str(nwb_path), preload=False)
-    elif fif_path.exists():
-        logger.info("Loading FIF file: %s", fif_path)
-        raw = mne.io.read_raw_fif(str(fif_path), preload=False)
+
+        with pynwb.NWBHDF5IO(str(nwb_path), "r") as io:
+            nwb = io.read()
+            e_series = nwb.acquisition["ElectricalSeries"]
+            stim_series = nwb.acquisition["StimLabels"]
+            electrode_info = nwb.electrodes.to_dataframe().copy()
+
+            # Load 
+            df = pd.DataFrame(e_series.data[()], columns=e_series.description.split(","))
+            df["timestamps"] = e_series.timestamps[()]
+
+            # Stim mapping (vectorized-ish, no list comp)
+            stim_keys = stim_series.data[()].astype(str).flatten()
+            stim_times = stim_series.timestamps[()]
+        stim = dict(zip(stim_keys, stim_times))
+
+        # Event filtering (use .between for clarity + speed)
+        event_df = df[df['timestamps'].between(
+            stim['Onset Movie'], stim['Offset Movie'])].copy()
+        # CReate MNE Raw object
+        info = mne.create_info(
+            ch_names=list(event_df.columns[:-1]),
+            sfreq=1 / event_df['timestamps'].diff().mean(),
+            ch_types='eeg'
+            )
+        event_df = event_df.drop(columns=['timestamps'])
+        raw = mne.io.RawArray(
+            event_df.T * 1e-6, info=info
+        )  # multiplying by 1e-6 converts to volts
+
+
+        # Get montage file based on cap type
+        cap_types = pd.read_csv(os.path.join(CAP_DIR, 'captypes_clean.csv'))
+        subject_cap_type = cap_types.loc[
+            cap_types['a_number'] == subject_id[4:], 'cap_type'
+        ].values[0]
+        if subject_cap_type.startswith("RNP"):
+            montage_file = os.path.join(CAP_DIR, 'R-Net for BrainAmp_RNP-BA', subject_cap_type)
+        elif subject_cap_type.startswith("BC-MR"):
+            montage_file = os.path.join(CAP_DIR, subject_cap_type)
+        else:
+            raise ValueError(f"Unknown cap type: {subject_cap_type}")
+        montage = mne.channels.read_custom_montage(montage_file)
+        raw.set_montage(montage, on_missing='ignore')
+
+        imp_vars = {}
+        #expand the allImpedances column to get 3 variables for each channel
+        imp_vars['impedance1'] = {ch: np.int64(imp1) for ch, imp1 in zip(raw.info['ch_names'], [electrode_info.allImpedances[i][0] for i in range(len(electrode_info))])}
+        imp_vars['impedance2'] = {ch: np.int64(imp2) for ch, imp2 in zip(raw.info['ch_names'], [electrode_info.allImpedances[i][1] for i in range(len(electrode_info))])}
+        imp_vars['impedance3'] = {ch: np.int64(imp3) for ch, imp3 in zip(raw.info['ch_names'], [electrode_info.allImpedances[i][2] for i in range(len(electrode_info))])}
+        imp_vars['mean_impedance'] = {ch: np.nanmean(electrode_info.allImpedances[i]) for i, ch in enumerate(raw.info['ch_names'])}
+
     else:
         raise FileNotFoundError(
             f"No EEG file found for {subject_id} in {RAW_DIR}. "
@@ -153,13 +422,17 @@ def process_subject(subject_id: str) -> None:
 
     logger.info("Computing quality metrics for %s …", subject_id)
     metrics = compute_metrics(raw)
+    ac_metrics = analyze_autocorr_quality(
+        raw.get_data(picks="eeg"), raw.info["sfreq"]    )
+    metrics.update(ac_metrics)
+    metrics.update(imp_vars)
     metrics["subject_id"] = subject_id
+    return metrics
+    #out_path = DERIVATIVES_DIR / f"{subject_id}_quality_metrics.json"
+    #with out_path.open("w") as fh:
+    #    json.dump(metrics, fh, indent=2)
 
-    out_path = DERIVATIVES_DIR / f"{subject_id}_quality_metrics.json"
-    with out_path.open("w") as fh:
-        json.dump(metrics, fh, indent=2)
-
-    logger.info("Saved metrics to %s", out_path)
+    #logger.info("Saved metrics to %s", out_path)
 
 
 # ---------------------------------------------------------------------------
@@ -203,10 +476,14 @@ def main() -> None:
         process_subject(args.subject)
     else:
         # Discover all subjects from available raw files
-        nwb_files = list(RAW_DIR.glob("sub-*_task-rest_eeg.nwb"))
-        fif_files = list(RAW_DIR.glob("sub-*_task-rest_eeg_raw.fif"))
+        glob_pattern = (
+            f'sub-*/ses-{SESSION_ID}/'
+            f'sub-*_ses-{SESSION_ID}_task-{TASK_ID}_run-{RUN_ID}_MoBI.nwb'
+        )
+        nwb_files = list(RAW_DIR.glob(glob_pattern))
+
         subject_ids = sorted(
-            {p.name.split("_")[0] for p in nwb_files + fif_files}
+            {p.name.split("_")[0] for p in nwb_files}
         )
         if not subject_ids:
             logger.warning(
