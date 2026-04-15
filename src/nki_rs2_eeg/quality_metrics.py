@@ -16,6 +16,7 @@ or, to process a single subject::
 from __future__ import annotations
 
 import argparse
+from curses import raw
 import json
 import logging
 import os
@@ -26,6 +27,7 @@ import mne
 import numpy as np
 import pandas as pd
 import pynwb
+import pyprep
 
 logger = logging.getLogger(__name__)
 
@@ -283,7 +285,7 @@ def analyze_autocorr_quality(eeg_data: np.ndarray, fs: float, window_seconds: fl
 
 
 
-def compute_metrics(raw: mne.io.BaseRaw) -> dict[str, Any]:
+def compute_simple_metrics(raw: mne.io.BaseRaw) -> dict[str, Any]:
     """Compute quality metrics for a continuous EEG recording.
 
     Args:
@@ -333,6 +335,50 @@ def compute_metrics(raw: mne.io.BaseRaw) -> dict[str, Any]:
         "bad_channels": list(raw.info["bads"]),
     }
 
+def compute_all_qc_matrics(raw: mne.io.BaseRaw) -> dict[str, Any]:
+    """Compute all quality metrics for a continuous EEG recording.
+
+    Args:
+        raw: A preloaded :class:`mne.io.BaseRaw` instance.
+    Returns:
+        A dictionary with all quality metrics.
+    """
+    metrics = compute_simple_metrics(raw)
+    ac_metrics = analyze_autocorr_quality(
+        raw.get_data(picks="eeg"), raw.info["sfreq"])
+    metrics.update(ac_metrics)
+
+
+
+def clean_data(raw: mne.io.BaseRaw) -> mne.io.BaseRaw:
+    """Apply basic cleaning steps to the raw EEG data.
+
+    This function performs the following steps:
+    1. Apply a bandpass filter to remove slow drifts and high-frequency noise.
+    2. Use the PREP pipeline to identify and interpolate bad channels, and to
+       re-reference the data robustly.
+    3. Annotate blinks and muscle artifacts using MNE's built-in functions.
+
+    Args:
+        raw: A preloaded :class:`mne.io.BaseRaw` instance.
+    """
+    # add a high frequency bandpass filter to remove muscle artifacts
+    raw.filter(l_freq=1.0, h_freq=50.0) # only keeping frequencies between 1-50 Hz
+    
+    # Preprocessing the EEG data
+    prep_params = {
+            "ref_chs": "eeg",
+            "reref_chs": "eeg",
+            "line_freqs": np.arange(60, raw.info["sfreq"] / 2, 60),
+        }
+    # these params set up the robust reference  - i.e. median of all channels and interpolate bad channels
+    prep = pyprep.PrepPipeline(raw, montage=raw.montage, channel_wise=True, prep_params=prep_params)
+    print("STARTING preprocessing")
+    prep_output = prep.fit()
+    raw_cleaned = prep_output.raw_eeg
+    print("DONE with preprocessing")
+    return raw_cleaned, prep_output
+    
 
 def process_subject(subject_id: str, session_id: str, task_id: str, run_id: str) -> None:
     """Load raw EEG data for one participant and save quality metrics.
@@ -421,13 +467,17 @@ def process_subject(subject_id: str, session_id: str, task_id: str, run_id: str)
         )
 
     logger.info("Computing quality metrics for %s …", subject_id)
-    metrics = compute_metrics(raw)
-    ac_metrics = analyze_autocorr_quality(
-        raw.get_data(picks="eeg"), raw.info["sfreq"]    )
-    metrics.update(ac_metrics)
-    metrics.update(imp_vars)
-    metrics["subject_id"] = subject_id
-    return metrics
+    
+    pre_metrics = compute_all_qc_matrics(raw)
+    pre_metrics.update(imp_vars)
+    pre_metrics["subject_id"] = subject_id
+
+    raw_cleaned, prep_output = clean_data(raw)
+
+    post_metrics = compute_all_qc_matrics(raw_cleaned)
+    post_metrics['subject_id'] = subject_id
+
+    return pre_metrics, post_metrics, prep_output
     #out_path = DERIVATIVES_DIR / f"{subject_id}_quality_metrics.json"
     #with out_path.open("w") as fh:
     #    json.dump(metrics, fh, indent=2)
