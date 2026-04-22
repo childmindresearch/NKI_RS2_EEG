@@ -347,6 +347,7 @@ def compute_all_qc_matrics(raw: mne.io.BaseRaw) -> dict[str, Any]:
     ac_metrics = analyze_autocorr_quality(
         raw.get_data(picks="eeg"), raw.info["sfreq"])
     metrics.update(ac_metrics)
+    return metrics
 
 
 
@@ -372,7 +373,7 @@ def clean_data(raw: mne.io.BaseRaw) -> mne.io.BaseRaw:
             "line_freqs": np.arange(60, raw.info["sfreq"] / 2, 60),
         }
     # these params set up the robust reference  - i.e. median of all channels and interpolate bad channels
-    prep = pyprep.PrepPipeline(raw, montage=raw.montage, channel_wise=True, prep_params=prep_params)
+    prep = pyprep.PrepPipeline(raw, montage=raw.get_montage(), channel_wise=True, prep_params=prep_params)
     print("STARTING preprocessing")
     prep_output = prep.fit()
     raw_cleaned = prep_output.raw_eeg
@@ -434,10 +435,6 @@ def process_subject(subject_id: str, session_id: str, task_id: str, run_id: str)
             ch_types='eeg'
             )
         event_df = event_df.drop(columns=['timestamps'])
-        raw = mne.io.RawArray(
-            event_df.T * 1e-6, info=info
-        )  # multiplying by 1e-6 converts to volts
-
 
         # Get montage file based on cap type
         cap_types = pd.read_csv(os.path.join(CAP_DIR, 'captypes_clean.csv'))
@@ -451,13 +448,20 @@ def process_subject(subject_id: str, session_id: str, task_id: str, run_id: str)
         else:
             raise ValueError(f"Unknown cap type: {subject_cap_type}")
         montage = mne.channels.read_custom_montage(montage_file)
-        raw.set_montage(montage, on_missing='ignore')
+        info.set_montage(montage, on_missing='ignore')
+
+        raw = mne.io.RawArray(
+            event_df.T * 1e-6, info=info
+        )  # multiplying by 1e-6 converts to volts
+
+
+        
 
         imp_vars = {}
         #expand the allImpedances column to get 3 variables for each channel
-        imp_vars['impedance1'] = {ch: np.int64(imp1) for ch, imp1 in zip(raw.info['ch_names'], [electrode_info.allImpedances[i][0] for i in range(len(electrode_info))])}
-        imp_vars['impedance2'] = {ch: np.int64(imp2) for ch, imp2 in zip(raw.info['ch_names'], [electrode_info.allImpedances[i][1] for i in range(len(electrode_info))])}
-        imp_vars['impedance3'] = {ch: np.int64(imp3) for ch, imp3 in zip(raw.info['ch_names'], [electrode_info.allImpedances[i][2] for i in range(len(electrode_info))])}
+        #imp_vars['impedance1'] = {ch: int(imp1) for ch, imp1 in zip(raw.info['ch_names'], [electrode_info.allImpedances[i][0] for i in range(len(electrode_info))])}
+        #imp_vars['impedance2'] = {ch: int(imp2) for ch, imp2 in zip(raw.info['ch_names'], [electrode_info.allImpedances[i][1] for i in range(len(electrode_info))])}
+        #imp_vars['impedance3'] = {ch: int(imp3) for ch, imp3 in zip(raw.info['ch_names'], [electrode_info.allImpedances[i][2] for i in range(len(electrode_info))])}
         imp_vars['mean_impedance'] = {ch: np.nanmean(electrode_info.allImpedances[i]) for i, ch in enumerate(raw.info['ch_names'])}
 
     else:
@@ -468,16 +472,19 @@ def process_subject(subject_id: str, session_id: str, task_id: str, run_id: str)
 
     logger.info("Computing quality metrics for %s …", subject_id)
     
-    pre_metrics = compute_all_qc_matrics(raw)
-    pre_metrics.update(imp_vars)
-    pre_metrics["subject_id"] = subject_id
+    all_metrics = compute_all_qc_matrics(raw)
+    all_metrics["subject_id"] = subject_id
+    all_metrics = {"pre_" + k: v for k, v in all_metrics.items()}
 
     raw_cleaned, prep_output = clean_data(raw)
 
     post_metrics = compute_all_qc_matrics(raw_cleaned)
-    post_metrics['subject_id'] = subject_id
+    post_metrics = {"post_" + k: v for k, v in post_metrics.items()}
 
-    return pre_metrics, post_metrics, prep_output
+    all_metrics.update(post_metrics)
+    all_metrics.update(imp_vars)
+
+    return all_metrics, prep_output
     #out_path = DERIVATIVES_DIR / f"{subject_id}_quality_metrics.json"
     #with out_path.open("w") as fh:
     #    json.dump(metrics, fh, indent=2)
