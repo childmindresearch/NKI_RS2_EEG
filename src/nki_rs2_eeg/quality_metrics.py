@@ -71,7 +71,10 @@ RUN_ID = "01"
 # Public API
 # ---------------------------------------------------------------------------
 
-
+def custom_serializer(obj):
+    if hasattr(obj, '__dict__'):
+        return obj.__dict__    # Convert custom classes to dicts
+    return str(obj)            # Fallback to string for everything else
 
 def annotate_blinks(raw: mne.io.Raw, ch_name: list[str] = ["Fp1", "Fp2"]) -> mne.Annotations:
     """Annotate the blinks in the EEG signal.
@@ -271,14 +274,14 @@ def analyze_autocorr_quality(eeg_data: np.ndarray, fs: float, window_seconds: fl
     
     # Summarize across channels
     results = {
-        'channel_quality': np.array(channel_quality),
-        'max_autocorrs': np.array(max_autocorrs),
-        'all_autocorrs': np.array(all_autocorrs),
-        'bad_channels_ac': np.where(~np.array(channel_quality))[0],
-        'percent_clean': np.mean(channel_quality) * 100,
-        'n_bad_channels_ac': np.sum(~np.array(channel_quality)),
-        'worst_autocorr': np.max(max_autocorrs),
-        'lags_ms': np.arange(max_lag + 1) * 1000 / fs
+        'channel_quality': str(channel_quality),
+        'max_autocorrs': max_autocorrs,
+        'all_autocorrs': all_autocorrs,
+        'bad_channels_ac': np.where(~np.array(channel_quality))[0].tolist(),
+        'percent_clean': (np.mean(channel_quality) * 100).tolist(),
+        'n_bad_channels_ac': int(np.sum(~np.array(channel_quality))),
+        'worst_autocorr': float(np.max(max_autocorrs)),
+        'lags_ms': (np.arange(max_lag + 1) * 1000 / fs).tolist()
     }
     
     return results
@@ -363,25 +366,37 @@ def clean_data(raw: mne.io.BaseRaw) -> mne.io.BaseRaw:
     Args:
         raw: A preloaded :class:`mne.io.BaseRaw` instance.
     """
-    # add a high frequency bandpass filter to remove muscle artifacts
-    raw.filter(l_freq=1.0, h_freq=50.0) # only keeping frequencies between 1-50 Hz
+    clean_data_path = DERIVATIVES_DIR / f"{raw.subject_info['subject_id']}_ses-{raw.subject_info['session_id']}_task-{raw.subject_info['task_id']}_run-{raw.subject_info['run_id']}_cleaned.fif"
+    if clean_data_path.exists():
+        logger.info("Cleaned data already exists at %s, loading it.", clean_data_path)
+        return mne.io.read_raw_fif(clean_data_path, preload=True)
     
-    # Preprocessing the EEG data
-    prep_params = {
-            "ref_chs": "eeg",
-            "reref_chs": "eeg",
-            "line_freqs": np.arange(60, raw.info["sfreq"] / 2, 60),
-        }
-    # these params set up the robust reference  - i.e. median of all channels and interpolate bad channels
-    prep = pyprep.PrepPipeline(raw, montage=raw.get_montage(), channel_wise=True, prep_params=prep_params)
-    print("STARTING preprocessing")
-    prep_output = prep.fit()
-    raw_cleaned = prep_output.raw_eeg
-    print("DONE with preprocessing")
-    return raw_cleaned, prep_output
+    else:
+        
+        # add a high frequency bandpass filter to remove muscle artifacts
+        raw.filter(l_freq=1.0, h_freq=50.0) # only keeping frequencies between 1-50 Hz
+        
+        # Preprocessing the EEG data
+        prep_params = {
+                "ref_chs": "eeg",
+                "reref_chs": "eeg",
+                "line_freqs": np.arange(60, raw.info["sfreq"] / 2, 60),
+            }
+        # these params set up the robust reference  - i.e. median of all channels and interpolate bad channels
+        prep = pyprep.PrepPipeline(raw, montage=raw.get_montage(), channel_wise=True, prep_params=prep_params)
+        print("STARTING preprocessing")
+        prep_output = prep.fit()
+        raw_cleaned = prep_output.raw_eeg
+
+        print("DONE with preprocessing")
+        # Save the cleaned data for future use
+        raw_cleaned.save(clean_data_path, overwrite=True)
+        logger.info("Saved cleaned raw data to %s", clean_data_path)
+
+        return raw_cleaned, prep_output
     
 
-def process_subject(subject_id: str, session_id: str, task_id: str, run_id: str) -> None:
+def process_subject(subject_id: str, session_id: str = SESSION_ID , task_id: str = TASK_ID, run_id: str = RUN_ID) -> None:
     """Load raw EEG data for one participant and save quality metrics.
 
     The function expects a file named ``<subject_id>_task-rest_eeg.nwb``
@@ -433,7 +448,7 @@ def process_subject(subject_id: str, session_id: str, task_id: str, run_id: str)
             ch_names=list(event_df.columns[:-1]),
             sfreq=1 / event_df['timestamps'].diff().mean(),
             ch_types='eeg'
-            )
+        )
         event_df = event_df.drop(columns=['timestamps'])
 
         # Get montage file based on cap type
@@ -453,7 +468,7 @@ def process_subject(subject_id: str, session_id: str, task_id: str, run_id: str)
         raw = mne.io.RawArray(
             event_df.T * 1e-6, info=info
         )  # multiplying by 1e-6 converts to volts
-
+        raw.subject_info = {"subject_id": subject_id, "session_id": session_id, "task_id": task_id, "run_id": run_id}
 
         
 
@@ -478,18 +493,25 @@ def process_subject(subject_id: str, session_id: str, task_id: str, run_id: str)
 
     raw_cleaned, prep_output = clean_data(raw)
 
+    all_metrics['noisy_channels_before_reref'] = prep_output.noisy_channels_original
+    all_metrics['noisy_channels_before_interp'] = prep_output.noisy_channels_before_interpolation
+    all_metrics['bad_after_reref_before_interp'] = prep_output.bad_before_interpolation
+    all_metrics['noisy_channels_after_interp'] = prep_output.noisy_channels_after_interpolation
+    all_metrics['interpolated_channels'] = prep_output.interpolated_channels
+    all_metrics['noisy_after_interp'] = prep_output.still_noisy_channels
+
+
     post_metrics = compute_all_qc_matrics(raw_cleaned)
     post_metrics = {"post_" + k: v for k, v in post_metrics.items()}
 
     all_metrics.update(post_metrics)
     all_metrics.update(imp_vars)
 
-    return all_metrics, prep_output
-    #out_path = DERIVATIVES_DIR / f"{subject_id}_quality_metrics.json"
-    #with out_path.open("w") as fh:
-    #    json.dump(metrics, fh, indent=2)
-
-    #logger.info("Saved metrics to %s", out_path)
+    #return all_metrics, prep_output
+    json_out_path = DERIVATIVES_DIR / f"{subject_id}_ses-{session_id}_task-{task_id}_run-{run_id}_qc_metrics.json"
+    with json_out_path.open("w") as fh:
+        json.dump(all_metrics, fh, indent=2, default=custom_serializer)
+    logger.info("Saved metrics to %s", json_out_path)
 
 
 # ---------------------------------------------------------------------------
@@ -549,7 +571,7 @@ def main() -> None:
             return
         for subject_id in subject_ids:
             try:
-                process_subject(subject_id)
+                process_subject(subject_id, SESSION_ID, TASK_ID, RUN_ID)
             except Exception:
                 logger.exception("Failed to process %s", subject_id)
 
