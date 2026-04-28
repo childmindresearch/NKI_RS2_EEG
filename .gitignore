@@ -4,6 +4,7 @@
 # EEG data files — never commit raw or processed data
 *.nwb
 *.fif
+*.edf
 
 # Data and figure directories — keep directory structure but not the data
 data/raw/*
