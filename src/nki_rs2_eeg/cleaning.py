@@ -57,6 +57,7 @@ def _find_repo_root(start: pathlib.Path) -> pathlib.Path:
 _REPO_ROOT = _find_repo_root(pathlib.Path(__file__).parent)
 RAW_DIR = _REPO_ROOT / "data" / "raw"
 DERIVATIVES_DIR = _REPO_ROOT / "data" / "derivatives"
+LOG_PATH = DERIVATIVES_DIR / "cleaning.log"
 CAP_DIR = _REPO_ROOT / "data" / "caps"
 SESSION_ID = "MOBI2C"
 TASK_ID = "passivepresent"
@@ -329,6 +330,20 @@ def full_pipeline(file: str, saving_bids_path: os.PathLike, overwrite = False) -
 
 #%%
 if __name__ == "__main__":
+    DERIVATIVES_DIR.mkdir(parents=True, exist_ok=True)
+
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s | %(levelname)s | %(name)s | %(message)s",
+        handlers=[
+            logging.FileHandler(LOG_PATH),
+            logging.StreamHandler(),
+        ],
+    )
+
+    logger.info("Logging to %s", LOG_PATH)
+
+
     report = {"subject":[],
               "session":[],
               "task":[],
