@@ -6,7 +6,7 @@ import json
 import logging
 import os
 
-nthreads = "32" 
+nthreads = "12" 
 os.environ["OMP_NUM_THREADS"] = nthreads
 os.environ["OPENBLAS_NUM_THREADS"] = nthreads
 os.environ["MKL_NUM_THREADS"] = nthreads
@@ -335,8 +335,9 @@ if __name__ == "__main__":
               "run":[],
               "message":[]
     }
+    filesofinsterest = list(RAW_DIR.rglob(rf'sub-*_ses-{SESSION_ID}_task-{TASK_ID}_run-{RUN_ID}_MoBI.nwb'))
 
-    for file in RAW_DIR.rglob(rf'sub-*_ses-{SESSION_ID}_task-{TASK_ID}_run-{RUN_ID}_MoBI.nwb'):
+    for file in filesofinsterest[:5]:
 
         if not file.suffix == ".nwb":
             continue
