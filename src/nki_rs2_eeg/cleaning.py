@@ -5,6 +5,14 @@ import argparse
 import json
 import logging
 import os
+
+nthreads = "32" 
+os.environ["OMP_NUM_THREADS"] = nthreads
+os.environ["OPENBLAS_NUM_THREADS"] = nthreads
+os.environ["MKL_NUM_THREADS"] = nthreads
+os.environ["VECLIB_MAXIMUM_THREADS"] = nthreads
+os.environ["NUMEXPR_NUM_THREADS"] = nthreads
+
 import pathlib
 from typing import Any
 from pathlib import Path
