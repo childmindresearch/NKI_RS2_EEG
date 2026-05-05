@@ -26,57 +26,6 @@ def convert_signal(eeg_stream:dict) -> np.ndarray:
                    for chan in chan_dict]]).T
     return np.multiply(signals,unit_matrix)
 
-def read_raw_nwb_old(nwb_path: str | os.PathLike, cap_dir: str | os.PathLike) -> mne.io.Raw:   
-    subject_id = nwb_path.parts[-3]
-    if nwb_path.exists():
-        logger.info("Loading NWB file: %s", nwb_path)
-
-        with NWBHDF5IO(str(nwb_path), "r") as io:
-            nwb = io.read()
-            e_series = nwb.acquisition["ElectricalSeries"]
-            stim_series = nwb.acquisition["StimLabels"]
-            #electrode_info = nwb.electrodes.to_dataframe().copy()
-
-            # Load 
-            df = pd.DataFrame(e_series.data[()], columns=e_series.description.split(","))
-            df["timestamps"] = e_series.timestamps[()]
-
-            # Stim mapping (vectorized-ish, no list comp)
-            stim_keys = stim_series.data[()].astype(str).flatten()
-            stim_times = stim_series.timestamps[()]
-        stim = dict(zip(stim_keys, stim_times))
-
-        # Event filtering (use .between for clarity + speed)
-        event_df = df[df['timestamps'].between(
-            stim['Onset Movie'], stim['Offset Movie'])].copy()
-        # CReate MNE Raw object
-        info = mne.create_info(
-            ch_names=list(event_df.columns[:-1]),
-            sfreq=1 / event_df['timestamps'].diff().mean(),
-            ch_types='eeg'
-        )
-        event_df = event_df.drop(columns=['timestamps'])
-
-        # Get montage file based on cap type
-        cap_types = pd.read_csv(os.path.join(cap_dir, 'captypes_clean.csv'))
-        subject_cap_type = cap_types.loc[
-            cap_types['a_number'] == subject_id[4:], 'cap_type'
-        ].values[0]
-        if subject_cap_type.startswith("RNP"):
-            montage_file = os.path.join(cap_dir, 'R-Net for BrainAmp_RNP-BA', subject_cap_type)
-        elif subject_cap_type.startswith("BC-MR"):
-            montage_file = os.path.join(cap_dir, subject_cap_type)
-        else:
-            raise ValueError(f"Unknown cap type: {subject_cap_type}")
-        montage = mne.channels.read_custom_montage(montage_file)
-        info.set_montage(montage, on_missing='ignore')
-
-        raw = mne.io.RawArray(
-            event_df.T * 1e-6, info=info
-        )  # multiplying by 1e-6 converts to volts
-        #raw.subject_info = {"subject_id": subject_id, "session_id": session_id, "task_id": task_id, "run_id": run_id}
-        return raw
-
 
 def read_raw_nwb(filename: str | os.PathLike) -> mne.io.Raw:
 
@@ -136,3 +85,19 @@ def read_raw_nwb(filename: str | os.PathLike) -> mne.io.Raw:
     return raw, electrodes
     
 # %%
+
+def read_processed_edf(filename: str | os.PathLike) -> mne.io.Raw:
+    """Read a processed EDF file and return an MNE Raw object.
+
+    Parameters
+    ----------
+    filename : str or os.PathLike
+        Path to the EDF file.
+    
+    Returns
+    -------
+    raw : mne.io.Raw
+        The loaded Raw object containing the EEG data.
+    """
+    raw = mne.io.read_raw_edf(filename, preload=True)
+    return raw
