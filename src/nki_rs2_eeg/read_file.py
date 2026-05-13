@@ -99,5 +99,52 @@ def read_processed_edf(filename: str | os.PathLike) -> mne.io.Raw:
     raw : mne.io.Raw
         The loaded Raw object containing the EEG data.
     """
-    raw = mne.io.read_raw_edf(filename, preload=True)
-    return raw
+    return mne.io.read_raw_edf(filename, preload=True)
+
+
+#%%
+def trim_data_to_event(raw: mne.io.BaseRaw, onset_label: str, offset_label: str) -> mne.io.BaseRaw:
+    """Trim the raw data to the time window defined by the first occurrence of the specified onset and offset labels.
+
+    Args:
+        raw (mne.io.BaseRaw): The raw EEG data in MNE format.
+        onset_label (str): The label of the onset event.
+        offset_label (str): The label of the offset event.
+
+    Returns:
+        mne.io.BaseRaw: The trimmed raw EEG data.
+    """
+    onsets = raw.annotations.onset
+    descriptions = raw.annotations.description
+
+    # Example: Get the onset time for the first occurrence of each
+    t_start = onsets[descriptions == onset_label][0]
+    t_stop = onsets[descriptions == offset_label][0]
+    return raw.copy().crop(tmin=t_start, tmax=t_stop)
+#%%
+
+def create_condition_dict(processed_files: list, conditions: list) -> dict:
+    """Create a dictionary with keys as condition names and values as numpy arrays of shape (subjects, channels, samples).
+
+    Args:
+        processed_files (list): List of file paths to the processed EEG data.
+        conditions (list): List of condition names to be included in the dictionary.
+
+    Returns:
+        dict: A dictionary where keys are condition names and values are numpy arrays of shape (subjects, channels, samples).
+    """
+    data = {}
+    # First get a list of raw objects trimmed to event of interest
+    for condition in conditions:
+        raws = []
+        for f in processed_files:
+            raw = read_processed_edf(f, preload=True)
+            raw = trim_data_to_event(raw, 'Onset Movie', 'Offset Movie')
+            raws.append(raw)
+        # They all must have the same number of samples and channels, so we can stack them into a numpy array
+        min_samples = min([r.get_data().shape[1] for r in raws])
+        raws_dat = [r.copy().get_data()[:, :min_samples] for r in raws]
+        # mean center the data across time for each channel*subject
+        raws_dat = [r - np.mean(r, axis=1, keepdims=True) for r in raws_dat]
+        data[condition] = np.stack(raws_dat)
+    return data
