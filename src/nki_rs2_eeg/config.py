@@ -25,7 +25,6 @@ DERIVATIVES_DIR = ROOT_DIR / "data" / "derivatives"
 # DERIVATIVES_DIR = Path("/path/to/derivatives")  # Update this path as needed
 
 CONCAT_DATA_DIR = DERIVATIVES_DIR / "sub-ALL_ses-MOBI1A_task-passivepresent_run-ALL_eeg.npy"
-TIMES_DIR = ROOT_DIR / "data" / "sub-ALL_ses-MOBI1A_task-passivepresent_run-ALL_times.npy"
 
 
 #%%

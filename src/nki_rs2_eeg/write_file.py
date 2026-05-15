@@ -1,15 +1,22 @@
+#%%
+"""Module for saving processed EEG data in a structured format.
+
+This module provides functions to save processed EEG data in a structured
+format for later analysis. It includes utilities to trim raw data to specific
+event windows and create condition-specific dictionaries of EEG data for use
+in analyses like CCA and CorrCA.
+"""
+import argparse
+
 import mne
 import numpy as np
 
-# This module provides functions to save processed EEG data in a structured format for later analysis. It includes utilities to trim raw data to specific event windows and create condition-specific dictionaries of EEG data for use in analyses like CCA and CorrCA.
-
 from config import DERIVATIVES_DIR
 
-
-
-
 #%%
-def trim_data_to_event(raw: mne.io.BaseRaw, onset_label: str, offset_label: str) -> mne.io.BaseRaw:
+def trim_data_to_event(
+    raw: mne.io.BaseRaw, onset_label: str, offset_label: str
+) -> mne.io.BaseRaw:
     """Trim the raw data to the time window defined by the first occurrence of the specified onset and offset labels.
 
     Args:
@@ -54,18 +61,47 @@ def create_condition_array(processed_files: list, onset_label: str, offset_label
     return np.stack(raws_dat)
 #%%
 
-def save_collated_condition_data(session_id: str, task_id: str, onset_label: str, offset_label: str) -> None:
+def save_collated_condition_data(
+    session_id: str,
+    task_id: str,
+    run_id: str,
+    onset_label: str,
+    offset_label: str,
+) -> None:
     """Save the condition dictionary to a specified path.
 
     Args:
         session_id (str): The session ID.
         task_id (str): The task ID.
+        run_id (str): The run ID.
         onset_label (str): The label of the onset event.
         offset_label (str): The label of the offset event.
 
     """
-    processed_files = list(DERIVATIVES_DIR.rglob(f'sub-*{session_id}*{task_id}*_eeg.edf'))
+    processed_files = list(
+        DERIVATIVES_DIR.rglob(f'sub-*{session_id}*{task_id}*run-{run_id}_eeg.edf')
+    )
     condition = create_condition_array(processed_files, onset_label, offset_label)
-    save_path = DERIVATIVES_DIR / f'sub-ALL_ses-{session_id}_task-{task_id}*_eeg.npy'
-
+    save_path = DERIVATIVES_DIR / f'sub-ALL_ses-{session_id}_task-{task_id}_run-{run_id}_eeg.npy'
     np.save(save_path, condition)
+    print(f"{len(processed_files)} subjects collated and saved to {save_path}.")
+
+# %%
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="Save collated condition data.")
+    parser.add_argument("--session_id", type=str, default="MOBI1A", help="Session ID")
+    parser.add_argument("--task_id", type=str, default="passivepresent", help="Task ID")
+    parser.add_argument("--run_id", type=str, default="ALL", help="Run ID")
+    parser.add_argument("--onset_label", type=str, default="S  1", help="Onset event label")
+    parser.add_argument("--offset_label", type=str, default="S  2", help="Offset event label")
+
+    args = parser.parse_args()
+
+    save_collated_condition_data(
+        session_id=args.session_id,
+        task_id=args.task_id,
+        run_id=args.run_id,
+        onset_label=args.onset_label,
+        offset_label=args.offset_label,
+    )
