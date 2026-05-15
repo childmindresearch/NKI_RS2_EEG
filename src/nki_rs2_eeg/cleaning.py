@@ -59,13 +59,10 @@ RAW_DIR = _REPO_ROOT / "data" / "raw"
 DERIVATIVES_DIR = _REPO_ROOT / "data" / "derivatives"
 LOG_PATH = DERIVATIVES_DIR / "cleaning.log"
 CAP_DIR = _REPO_ROOT / "data" / "caps"
-SESSION_ID = "MOBI2C"
+SESSION_ID = "MOBI1A"
 TASK_ID = "passivepresent"
 RUN_ID = "01"
 
-
-#%%
-#raw = read_raw_nwb(nwb_path=nwb_path, cap_dir=CAP_DIR)
 
 # %%
 
@@ -175,7 +172,7 @@ def save_bids_tree(raw_cleaned: mne.io.Raw, bids_path: mne_bids.BIDSPath) -> Non
         None: The function saves the EEG data to disk and doesn't return anything.
     """
     mne_bids.write_raw_bids(
-        raw_cleaned.pick_types(eeg = True),
+        raw_cleaned, #.pick_types(eeg = True),
         bids_path=bids_path,
         allow_preload=True,
         format="EDF",
@@ -352,7 +349,7 @@ if __name__ == "__main__":
     }
     filesofinsterest = list(RAW_DIR.rglob(rf'sub-*_ses-{SESSION_ID}_task-{TASK_ID}_run-{RUN_ID}_MoBI.nwb'))
 
-    for file in filesofinsterest[:5]:
+    for file in filesofinsterest:
 
         if not file.suffix == ".nwb":
             continue
@@ -372,14 +369,19 @@ if __name__ == "__main__":
                 task=TASK_ID,
                 run=int(RUN_ID),
             )
-            message = full_pipeline(file, saving_bids_path, overwrite = True)
+            message = full_pipeline(file, saving_bids_path, overwrite = False)
             report["message"].append(message)
 
         except Exception as e:
             report["message"].append(str(e))
             continue
-
-    report_df = pd.DataFrame(report)
-    report_df.to_csv(DERIVATIVES_DIR / "cleaning_report_nwb.tsv", sep = "\t", index = False)
+    if (DERIVATIVES_DIR / "cleaning_report_nwb.tsv").is_file():
+        existing_report = pd.read_csv(DERIVATIVES_DIR / "cleaning_report_nwb.tsv", sep="\t")
+        report_df = pd.DataFrame(report)
+        combined_report = pd.concat([existing_report, report_df], ignore_index=True)
+        combined_report.to_csv(DERIVATIVES_DIR / "cleaning_report_nwb.tsv", sep="\t", index=False)
+    else:
+        report_df = pd.DataFrame(report)
+        report_df.to_csv(DERIVATIVES_DIR / "cleaning_report_nwb.tsv", sep = "\t", index = False)
 
 #%%

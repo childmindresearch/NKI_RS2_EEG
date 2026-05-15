@@ -10,6 +10,10 @@
 data/raw/*
 data/caps/*
 data/derivatives/*
+data/*.tsv
+data/*.csv
+data/*.json
+data
 figures/*
 !data/raw/.gitkeep
 !data/derivatives/.gitkeep

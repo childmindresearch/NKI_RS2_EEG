@@ -16,7 +16,6 @@ or, to process a single subject::
 from __future__ import annotations
 
 import argparse
-from curses import raw
 import json
 import logging
 import os
@@ -63,7 +62,7 @@ _REPO_ROOT = _find_repo_root(pathlib.Path(__file__).parent)
 RAW_DIR = _REPO_ROOT / "data" / "raw"
 DERIVATIVES_DIR = _REPO_ROOT / "data" / "derivatives"
 CAP_DIR = _REPO_ROOT / "data" / "caps"
-SESSION_ID = "MOBI2C"
+SESSION_ID = "MOBI1A"
 TASK_ID = "passivepresent"
 RUN_ID = "01"
 
@@ -315,25 +314,17 @@ def compute_simple_metrics(raw: mne.io.BaseRaw) -> dict[str, Any]:
     # Per-channel variance (µV²)
     channel_variance: list[float] = (np.var(data, axis=1) * 1e12).tolist()
 
-    # Band power via Welch PSD
-    bands = {
-        "delta": (1.0, 4.0),
-        "theta": (4.0, 8.0),
-        "alpha": (8.0, 13.0),
-        "beta": (13.0, 30.0),
-        "gamma": (30.0, 80.0),
-    }
-    spectrum = raw.compute_psd(picks="eeg", fmin=1.0, fmax=80.0)
-    psds, freqs = spectrum.get_data(return_freqs=True)
 
-    psd_band_power: dict[str, float] = {}
-    for band_name, (fmin, fmax) in bands.items():
-        idx = np.where((freqs >= fmin) & (freqs < fmax))[0]
-        psd_band_power[band_name] = float(np.mean(psds[:, idx]))
+    spectrum = raw.compute_psd(picks="eeg", fmin=1.0, fmax=80.0, n_fft=2048)
+    psds, freqs = spectrum.get_data(return_freqs=True)
+    psd_mean = psds.mean(axis=0) * 1e12  # V² → µV²
+    # Convert to dB for plotting
+    #psd_db = 10 * np.log10(psd_mean)
+    
 
     return {
         "channel_variance": channel_variance,
-        "psd_band_power": psd_band_power,
+        "psd_band_power": {'psd': psd_mean.tolist(), 'freqs': freqs.tolist()},
         "n_annotations": len(raw.annotations),
         "bad_channels": list(raw.info["bads"]),
     }

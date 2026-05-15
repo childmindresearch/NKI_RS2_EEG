@@ -57,6 +57,8 @@ CHANNEL_NAMES = ['Fp1', 'Fz', 'F3', 'F7', 'F9','FC5',
 # Line noise frequency (50 Hz in Europe, 60 Hz in North America)
 LINE_NOISE_HZ = 60
 
+SESSION_ID = "MOBI1A"
+TASK_ID = "passivepresent"
 
 # ============================================================
 # QUALITY METRIC THRESHOLDS
@@ -120,7 +122,7 @@ WINDOW_STEP_SAMPLES = WINDOW_STEP_SEC * FS
 GAMMA = 0.1
 
 # Number of CCA components to retain
-N_COMPONENTS = 5
+N_COMPONENTS = 1
 
 # ISC threshold below which a participant is flagged as an outlier
 ISC_OUTLIER_THRESHOLD = 0.01
