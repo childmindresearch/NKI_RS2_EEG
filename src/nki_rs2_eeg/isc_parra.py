@@ -206,7 +206,6 @@ def compute_ISC_all_components(X, W, n_components=N_COMPONENTS):
 
 #%%
 
-X = np.load(f"{CONCAT_DATA_DIR}")  # shape (subjects, channels, samples)
 
 
 #W, ISC_group = fit_corrca(X, gamma=GAMMA)  # group-level ISC values for each component
@@ -257,15 +256,6 @@ def fit_corrca(X, gamma=0.1):
     evecs        = evecs[:, sort_idx]
     return evecs, evals
 
-W, ISC_group = fit_corrca(X)
-print(f"\nW shape: {W.shape}")
-print(f"Group ISC Component 1: {ISC_group[0]:.4f}")
-#%%
-v1 = W[:, 0]  # first spatial filter
-
-Y = np.stack([v1 @ X[n] for n in range(X.shape[0])], axis=0) # all subjects timeseries projected onto first component
-print(f"\nProjected data shape: {Y.shape}  (subjects x time)")
-Y_dm = Y - np.mean(Y, axis=1, keepdims=True)
 #%%
 
 
@@ -293,14 +283,28 @@ def compute_r_kl_matrix(Y_dm: np.array) -> np.array:
     R = Y_dm @ Y_dm.T
     return R
 
+
+#%%
+X = np.load(f"{CONCAT_DATA_DIR}")  # shape (subjects, channels, samples)
+
+W, ISC_group = fit_corrca(X)
+print(f"\nW shape: {W.shape}")
+print(f"Group ISC Component 1: {ISC_group[0]:.4f}")
+#%%
+v1 = W[:, 0]  # first spatial filter
+
+Y = np.stack([v1 @ X[n] for n in range(X.shape[0])], axis=0) # all subjects timeseries projected onto first component
+print(f"\nProjected data shape: {Y.shape}  (subjects x time)")
+Y_dm = Y - np.mean(Y, axis=1, keepdims=True)
 R = compute_r_kl_matrix(Y_dm)
+ISC_subjects = compute_per_subject_ISC(R)
 
 #%%
 # Simple average across components
-ISC_average = np.mean(ISC_matrix, axis=1)
-std_isc    = np.std(ISC_matrix)
+ISC_average = np.mean(ISC_subjects)
+std_isc    = np.std(ISC_subjects)
 threshold  = ISC_average - 2 * std_isc
-flagged    = np.where(ISC_matrix < threshold)[0]
+flagged    = np.where(ISC_subjects < threshold)[0]
 
 print(f"\n=== OUTLIER DETECTION ===")
 print(f"Mean ISC:          {ISC_average:.4f}")
