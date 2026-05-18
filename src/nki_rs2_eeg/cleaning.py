@@ -23,6 +23,17 @@ import pandas as pd
 import pyprep
 from nki_rs2_eeg import read_file
 from nki_rs2_eeg.read_file import read_raw_nwb
+from nki_rs2_eeg.config import (
+    RAW_DATA_DIR,
+    DERIVATIVES_DIR,
+    SESSION_ID,
+    TASK_ID,
+    RUN_ID,
+    CHANNEL_NAMES,
+    FS,
+    LINE_NOISE_HZ,
+)
+
 
 logger = logging.getLogger(__name__)
 
@@ -59,9 +70,7 @@ RAW_DIR = _REPO_ROOT / "data" / "raw"
 DERIVATIVES_DIR = _REPO_ROOT / "data" / "derivatives"
 LOG_PATH = DERIVATIVES_DIR / "cleaning.log"
 CAP_DIR = _REPO_ROOT / "data" / "caps"
-SESSION_ID = "MOBI1A"
-TASK_ID = "passivepresent"
-RUN_ID = "01"
+
 
 
 # %%

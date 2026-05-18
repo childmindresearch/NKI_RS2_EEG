@@ -24,8 +24,8 @@ FIGURES_DIR = ROOT_DIR / "figures"
 #DERIVATIVES_DIR = ROOT_DIR / "data" / "derivatives"
 DERIVATIVES_DIR = Path("/data3/cdb/MOBI_LAB/NKI_RS2/EEG_derivatives")  # Update this path as needed
 SESSION_ID="MOBI1A"
-TASK_ID="passivepresent"
-RUN_ID="1"
+TASK_ID="passivesherlock"
+RUN_ID="01"
 CONCAT_DATA_DIR = DERIVATIVES_DIR / f"sub-ALL_ses-{SESSION_ID}_task-{TASK_ID}_run-{RUN_ID}_eeg.npy"
 
 #%%
