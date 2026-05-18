@@ -344,7 +344,6 @@ if __name__ == "__main__":
         ISC_subjects = compute_per_subject_ISC(R)
         np.save(f"{DERIVATIVES_DIR}/sub-ALL_ses-{SESSION_ID}_task-{TASK_ID}_run-{RUN_ID}_isc_per_subject.npy", ISC_subjects)
         np.save(f"{DERIVATIVES_DIR}/sub-ALL_ses-{SESSION_ID}_task-{TASK_ID}_run-{RUN_ID}_isc_group.npy", ISC_group)
-        
     except Exception as e:
         print(f"An error occurred: {e}")
 
@@ -354,13 +353,3 @@ if __name__ == "__main__":
 
 
 
-    except FileNotFoundError:
-        
-    
-    Rw = compute_Rw(X)
-
-    print("\n=== WITHIN-SUBJECT COVARIANCE MATRIX Rw ===")
-    print(f"Shape: {Rw.shape}")
-    print(f"Diagonal (channel variances, first 5): "
-        f"{np.round(np.diag(Rw)[:5], 2)}")
-    print(f"This captures how channels co-vary WITHIN each subject")
