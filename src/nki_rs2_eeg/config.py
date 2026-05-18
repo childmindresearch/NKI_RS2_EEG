@@ -21,11 +21,12 @@ RESULTS_DIR = ROOT_DIR / "results"
 # Directory to save figures
 FIGURES_DIR = ROOT_DIR / "figures"
 # Directory to save Derivatives
-DERIVATIVES_DIR = ROOT_DIR / "data" / "derivatives"
-# DERIVATIVES_DIR = Path("/path/to/derivatives")  # Update this path as needed
-
-CONCAT_DATA_DIR = DERIVATIVES_DIR / "sub-ALL_ses-MOBI1A_task-passivepresent_run-1_eeg.npy"
-
+#DERIVATIVES_DIR = ROOT_DIR / "data" / "derivatives"
+DERIVATIVES_DIR = Path("/data3/cdb/MOBI_LAB/NKI_RS2/EEG_derivatives")  # Update this path as needed
+SESSION_ID="MOBI1A"
+TASK_ID="passivepresent"
+RUN_ID="1"
+CONCAT_DATA_DIR = DERIVATIVES_DIR / f"sub-ALL_ses-{SESSION_ID}_task-{TASK_ID}_run-{RUN_ID}_eeg.npy"
 
 #%%
 # ============================================================
@@ -56,9 +57,6 @@ CHANNEL_NAMES = ['Fp1', 'Fz', 'F3', 'F7', 'F9','FC5',
 # Line noise frequency (50 Hz in Europe, 60 Hz in North America)
 LINE_NOISE_HZ = 60
 
-SESSION_ID = "MOBI1A"
-TASK_ID = "passivepresent"
-RUN_ID = "1"
 
 # ============================================================
 # QUALITY METRIC THRESHOLDS
