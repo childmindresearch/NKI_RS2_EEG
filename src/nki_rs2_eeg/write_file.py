@@ -49,16 +49,18 @@ def create_condition_array(processed_files: list, onset_label: str, offset_label
     """
     # First get a list of raw objects trimmed to event of interest
     raws = []
+    subject_order = []
     for f in processed_files:
         raw = mne.io.read_raw_edf(f, preload=True)
         raw = trim_data_to_event(raw, onset_label, offset_label)
         raws.append(raw)
+        subject_order.append(f.stem)
     # They all must have the same number of samples and channels, so we can stack them into a numpy array
     min_samples = min([r.get_data().shape[1] for r in raws])
     raws_dat = [r.copy().get_data()[:, :min_samples] for r in raws]
     # mean center the data across time for each channel*subject
     #raws_dat = [r - np.mean(r, axis=1, keepdims=True) for r in raws_dat]
-    return np.stack(raws_dat)
+    return np.stack(raws_dat), subject_order
 #%%
 
 def save_collated_condition_data(
@@ -81,8 +83,16 @@ def save_collated_condition_data(
     processed_files = list(
         DERIVATIVES_DIR.rglob(f'sub-*{session_id}*{task_id}*run-{run_id}_eeg.edf')
     )
-    condition = create_condition_array(processed_files, onset_label, offset_label)
+    condition, subject_order = create_condition_array(
+        processed_files, onset_label, offset_label
+    )
     save_path = DERIVATIVES_DIR / f'sub-ALL_ses-{session_id}_task-{task_id}_run-{run_id}_eeg.npy'
+
+    np.save(
+        DERIVATIVES_DIR
+        / f'sub-ALL_ses-{session_id}_task-{task_id}_run-{run_id}_isc_sub_order.npy',
+        subject_order,
+    )
     np.save(save_path, condition)
     print(f"{len(processed_files)} subjects collated and saved to {save_path}.")
 

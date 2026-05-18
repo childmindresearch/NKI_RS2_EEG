@@ -24,7 +24,7 @@ FIGURES_DIR = ROOT_DIR / "figures"
 DERIVATIVES_DIR = ROOT_DIR / "data" / "derivatives"
 # DERIVATIVES_DIR = Path("/path/to/derivatives")  # Update this path as needed
 
-CONCAT_DATA_DIR = DERIVATIVES_DIR / "sub-ALL_ses-MOBI1A_task-passivepresent_run-ALL_eeg.npy"
+CONCAT_DATA_DIR = DERIVATIVES_DIR / "sub-ALL_ses-MOBI1A_task-passivepresent_run-1_eeg.npy"
 
 
 #%%
@@ -58,6 +58,7 @@ LINE_NOISE_HZ = 60
 
 SESSION_ID = "MOBI1A"
 TASK_ID = "passivepresent"
+RUN_ID = "1"
 
 # ============================================================
 # QUALITY METRIC THRESHOLDS
