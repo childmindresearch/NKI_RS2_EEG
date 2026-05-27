@@ -51,10 +51,18 @@ def create_condition_array(processed_files: list, onset_label: str, offset_label
     raws = []
     subject_order = []
     for f in processed_files:
-        raw = mne.io.read_raw_edf(f, preload=True)
-        raw = trim_data_to_event(raw, onset_label, offset_label)
+        try:
+            raw = mne.io.rea
+            raw = trim_data_to_event(raw, onset_label, offset_label)
+              
+    
+        except Exception as e:
+            print(f"Error processing file {f}: {e}")
+            continue
+
         raws.append(raw)
-        subject_order.append(f.stem)
+        subject_order.append(f.stem)  
+        
     # They all must have the same number of samples and channels, so we can stack them into a numpy array
     min_samples = min([r.get_data().shape[1] for r in raws])
     raws_dat = [r.copy().get_data()[:, :min_samples] for r in raws]

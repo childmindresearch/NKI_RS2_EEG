@@ -6,7 +6,7 @@ import json
 import logging
 import os
 
-nthreads = "12" 
+nthreads = "8" 
 os.environ["OMP_NUM_THREADS"] = nthreads
 os.environ["OPENBLAS_NUM_THREADS"] = nthreads
 os.environ["MKL_NUM_THREADS"] = nthreads
@@ -66,8 +66,8 @@ def _find_repo_root(start: pathlib.Path) -> pathlib.Path:
 
 
 _REPO_ROOT = _find_repo_root(pathlib.Path(__file__).parent)
-RAW_DIR = _REPO_ROOT / "data" / "raw"
-DERIVATIVES_DIR = _REPO_ROOT / "data" / "derivatives"
+RAW_DIR =RAW_DATA_DIR # _REPO_ROOT / "data" / "raw"
+#DERIVATIVES_DIR = _REPO_ROOT / "data" / "derivatives"
 LOG_PATH = DERIVATIVES_DIR / "cleaning.log"
 CAP_DIR = _REPO_ROOT / "data" / "caps"
 
@@ -358,7 +358,7 @@ if __name__ == "__main__":
     }
     filesofinsterest = list(RAW_DIR.rglob(rf'sub-*_ses-{SESSION_ID}_task-{TASK_ID}_run-{RUN_ID}_MoBI.nwb'))
 
-    for file in filesofinsterest:
+    for file in filesofinsterest[5:]:
 
         if not file.suffix == ".nwb":
             continue
@@ -392,5 +392,3 @@ if __name__ == "__main__":
     else:
         report_df = pd.DataFrame(report)
         report_df.to_csv(DERIVATIVES_DIR / "cleaning_report_nwb.tsv", sep = "\t", index = False)
-
-#%%

@@ -13,8 +13,8 @@ ROOT_DIR = Path(__file__).parent.parent.parent
 
 
 # Directory containing raw NWB files
-RAW_DATA_DIR = ROOT_DIR / "data" / "raw"
-# RAW_DATA_DIR = Path("/path/to/raw/data")  # Update this path as needed
+#RAW_DATA_DIR = ROOT_DIR / "data" / "raw"
+RAW_DATA_DIR = Path("/data3/cdb/MOBI_LAB/NKI_RS2/ET_DATA/")  # Update this path as needed
 
 # Directory to save results
 RESULTS_DIR = ROOT_DIR / "results"
@@ -25,7 +25,7 @@ FIGURES_DIR = ROOT_DIR / "figures"
 DERIVATIVES_DIR = Path("/data3/cdb/MOBI_LAB/NKI_RS2/EEG_derivatives")  # Update this path as needed
 SESSION_ID="MOBI1A"
 TASK_ID="passivesherlock"
-RUN_ID="01"
+RUN_ID="1"
 CONCAT_DATA_DIR = DERIVATIVES_DIR / f"sub-ALL_ses-{SESSION_ID}_task-{TASK_ID}_run-{RUN_ID}_eeg.npy"
 
 #%%
