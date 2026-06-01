@@ -28,7 +28,20 @@ def convert_signal(eeg_stream:dict) -> np.ndarray:
 
 
 def read_raw_nwb(filename: str | os.PathLike) -> mne.io.Raw:
+    '''Read a raw NWB file and return an MNE Raw object.
+    
+    Parameters
+    ----------
+    filename : str or os.PathLike
+        Path to the NWB file.           
+    Returns
+    -------
+    raw : mne.io.Raw
+        The loaded Raw object containing the EEG data.
+    electrodes : pd.DataFrame
+        The electrode information from the NWB file.
 
+    '''
     with NWBHDF5IO(filename, 'r') as io:
         nwbfile = io.read()
         eeg_data = nwbfile.acquisition["ElectricalSeries"].data[:]
@@ -148,3 +161,5 @@ def create_condition_dict(processed_files: list, conditions: list) -> dict:
         raws_dat = [r - np.mean(r, axis=1, keepdims=True) for r in raws_dat]
         data[condition] = np.stack(raws_dat)
     return data
+# %%
+

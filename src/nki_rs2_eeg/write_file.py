@@ -27,13 +27,17 @@ def trim_data_to_event(
     Returns:
         mne.io.BaseRaw: The trimmed raw EEG data.
     """
-    onsets = raw.annotations.onset
-    descriptions = raw.annotations.description
+    try:
+        onsets = raw.annotations.onset
+        descriptions = raw.annotations.description
 
-    # Example: Get the onset time for the first occurrence of each
-    t_start = onsets[descriptions == onset_label][0]
-    t_stop = onsets[descriptions == offset_label][0]
-    return raw.copy().crop(tmin=t_start, tmax=t_stop)
+        # Example: Get the onset time for the first occurrence of each
+        t_start = onsets[descriptions == onset_label][0]
+        t_stop = onsets[descriptions == offset_label][0]
+        return raw.copy().crop(tmin=t_start, tmax=t_stop), "all good"
+    except Exception as e:
+        print(f"Error trimming data: {e}")
+        return raw.copy(), "Not Good..."
 #%%
 
 def create_condition_array(processed_files: list, onset_label: str, offset_label: str) -> np.ndarray:
@@ -52,9 +56,11 @@ def create_condition_array(processed_files: list, onset_label: str, offset_label
     subject_order = []
     for f in processed_files:
         try:
-            raw = mne.io.rea
-            raw = trim_data_to_event(raw, onset_label, offset_label)
-              
+            raw = mne.io.read_raw_edf(f, preload=True)
+            raw, status = trim_data_to_event(raw, onset_label, offset_label)
+            if status != "all good":
+                print(f"Warning: {status} for file {f}")
+                continue
     
         except Exception as e:
             print(f"Error processing file {f}: {e}")
