@@ -54,7 +54,8 @@ def create_condition_array(processed_files: list, onset_label: str, offset_label
     # First get a list of raw objects trimmed to event of interest
     raws = []
     subject_order = []
-    for f in processed_files:
+    for i, f in enumerate(processed_files):
+        print(f"{i/len(processed_files)*100:.2f}% done")
         try:
             raw = mne.io.read_raw_edf(f, preload=True)
             raw, status = trim_data_to_event(raw, onset_label, offset_label)
@@ -68,12 +69,15 @@ def create_condition_array(processed_files: list, onset_label: str, offset_label
 
         raws.append(raw)
         subject_order.append(f.stem)  
-        
-    # They all must have the same number of samples and channels, so we can stack them into a numpy array
-    min_samples = min([r.get_data().shape[1] for r in raws])
-    raws_dat = [r.copy().get_data()[:, :min_samples] for r in raws]
-    # mean center the data across time for each channel*subject
-    return np.stack(raws_dat), subject_order
+
+    min_samples = min(r.n_times for r in raws)
+    n_channels = raws[0].info['nchan']
+    out = np.empty((len(raws), n_channels, min_samples))
+    for i, r in enumerate(raws):
+        out[i] = r.get_data()[:, :min_samples]
+        del raws[i]
+    
+    return out, subject_order
 #%%
 
 def save_collated_condition_data(
