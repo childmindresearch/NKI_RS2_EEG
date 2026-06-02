@@ -11,12 +11,12 @@ import argparse
 import mne
 import numpy as np
 
-from config import DERIVATIVES_DIR
+from nki_rs2_eeg.config import DERIVATIVES_DIR
 
 #%%
 def trim_data_to_event(
     raw: mne.io.BaseRaw, onset_label: str, offset_label: str
-) -> mne.io.BaseRaw:
+) -> tuple[mne.io.BaseRaw, str]:
     """Trim the raw data to the time window defined by the first occurrence of the specified onset and offset labels.
 
     Args:
@@ -25,7 +25,7 @@ def trim_data_to_event(
         offset_label (str): The label of the offset event.
 
     Returns:
-        mne.io.BaseRaw: The trimmed raw EEG data.
+        tuple[mne.io.BaseRaw, str]: The trimmed raw EEG data and a status message.
     """
     try:
         onsets = raw.annotations.onset
@@ -40,7 +40,7 @@ def trim_data_to_event(
         return raw.copy(), "Not Good..."
 #%%
 
-def create_condition_array(processed_files: list, onset_label: str, offset_label: str) -> np.ndarray:
+def create_condition_array(processed_files: list, onset_label: str, offset_label: str) -> tuple[np.ndarray, list]:
     """Create an array of shape (subjects, channels, samples).
 
     Args:
@@ -49,7 +49,7 @@ def create_condition_array(processed_files: list, onset_label: str, offset_label
         offset_label (str): The label of the offset event.
 
     Returns:
-        np.ndarray: A numpy array of shape (subjects, channels, samples).
+        tuple[np.ndarray, list]: A numpy array of shape (subjects, channels, samples) and a list of subject order.
     """
     # First get a list of raw objects trimmed to event of interest
     raws = []
@@ -73,7 +73,6 @@ def create_condition_array(processed_files: list, onset_label: str, offset_label
     min_samples = min([r.get_data().shape[1] for r in raws])
     raws_dat = [r.copy().get_data()[:, :min_samples] for r in raws]
     # mean center the data across time for each channel*subject
-    #raws_dat = [r - np.mean(r, axis=1, keepdims=True) for r in raws_dat]
     return np.stack(raws_dat), subject_order
 #%%
 
