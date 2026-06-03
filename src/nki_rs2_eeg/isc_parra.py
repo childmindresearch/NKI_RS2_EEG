@@ -3,117 +3,7 @@ import numpy as np
 from scipy.linalg import eigh
 from nki_rs2_eeg.config import (CONCAT_DATA_DIR, DERIVATIVES_DIR, GAMMA, N_COMPONENTS, TASK_ID, SESSION_ID, RUN_ID)
                     
-
-# %%
-def compute_Rw(X: np.array) -> np.array:
-    """Compute the within-subject covariance matrix Rw.
-
-    Parameters:
-    ----------
-    X : np.array, shape (N, D, T)
-        Data array where N is the number of subjects, D is the number of
-        channels, and T is the number of time points.
-
-    Returns:
-    -------
-    Rw : np.array, shape (D, D)
-        Within-subject covariance matrix.
-    """
-    N, D, T = X.shape
-    Rw = np.zeros((D, D))
-    for n in range(N):
-        Rw += np.cov(X[n])
-    return Rw
-
-
-def compute_Rt(X: np.array) -> np.array:
-    """Compute total covariance matrix using the fast method.
-
-    Avoids explicit pairwise subject comparisons.
-
-    Parameters
-    ----------
-    X : np.array, shape (N, D, T)
-
-    Returns:
-    -------
-    Rt : np.array, shape (D, D)
-    """
-    N, D, T = X.shape
-    # Average across subjects → shape (D, T)
-    # Shared signal survives, independent noise cancels
-    X_mean = np.mean(X, axis=0)
-    # Covariance of the averaged signal, scaled by N^2
-    return N**2 * np.cov(X_mean)
-
-
-def compute_Rb(Rt: np.array, Rw: np.array, N: int) -> np.array:
-    """Compute between-subject covariance matrix Rb.
-
-    Parameters
-    ----------
-    Rt : np.array, shape (D, D)
-        Total covariance matrix.
-    Rw : np.array, shape (D, D)
-        Within-subject covariance matrix.
-
-    Returns:
-    -------
-    Rb : np.array, shape (D, D)
-        Between-subject covariance matrix.
-    """
-    return (Rt - Rw) / (N - 1) 
-
-def regularize(Rw: np.array, gamma: float = 0.1) -> np.array:
-    """Apply Tikhonov regularization to Rw.
-
-    Parameters:
-    ----------
-    Rw    : np.array, shape (D, D)
-    gamma : float, regularization strength
-        (0 = no regularization, 0.5 = retain half of the original covariance,
-        1 = full shrinkage to identity)
-
-    Returns:
-    -------
-    Rw_reg : np.array, shape (D, D)
-    """
-    D = Rw.shape[0]
-    # Mean of diagonal = average channel variance
-    mean_var = np.mean(np.diag(Rw))
-    Rw_reg   = (1 - gamma) * Rw + gamma * mean_var * np.identity(D)
-    return Rw_reg
-
-def fit_corrca(X: np.array, gamma: float = 0.1) -> (np.array, np.array):
-    """Fit Correlated Component Analysis (CorrCA) to the data.
-
-    Parameters:
-    ----------
-    X : np.array, shape (N, D, T)
-        Data array where N is the number of subjects, D is the number of
-        channels, and T is the number of time points.
-    gamma : float
-        Regularization strength for Rw.
-
-    Returns:
-    -------
-    W : np.array, shape (D, D)
-        Matrix of spatial filters (eigenvectors).
-    eigenvalues : np.array, shape (D,)
-        Eigenvalues corresponding to each component (ISC values).
-    """
-    N = X.shape[0]
-    Rw = compute_Rw(X)
-    Rt = compute_Rt(X)
-    Rb = compute_Rb(Rt, Rw, N)
-    Rw_reg = regularize(Rw, gamma=gamma)
-    eigenvalues, eigenvectors = eigh(Rb, Rw_reg)
-    eigenvalues  = np.real(eigenvalues)
-    eigenvectors = np.real(eigenvectors)
-    sort_idx     = np.argsort(eigenvalues)[::-1]
-    eigenvalues  = eigenvalues[sort_idx]
-    eigenvectors = eigenvectors[:, sort_idx]
-    return eigenvectors, eigenvalues
+#%%
 
 def compute_ISC(r_B, r_W, N):
     """
@@ -204,16 +94,6 @@ def compute_ISC_all_components(X, W, n_components=N_COMPONENTS):
 
     return ISC_matrix
 
-#%%
-
-
-
-#W, ISC_group = fit_corrca(X, gamma=GAMMA)  # group-level ISC values for each component
-
-#v1 = W[:, :N_COMPONENTS]  # first spatial filter
-
-#Y = np.stack([v1 @ X[n] for n in range(X.shape[0])], axis=0)
-#print(f"\nProjected data shape: {Y.shape}  (subjects x time)")
 
 #%%
 
@@ -259,7 +139,7 @@ def fit_corrca(X, gamma=0.1):
 #%%
 
 
-def compute_r_kl_matrix(Y_dm: np.array) -> np.array:
+def compute_r_kl_matrix(Y_dm: np.ndarray) -> np.ndarray:
     """Compute the full (N x N) matrix of pairwise scalar covariances between all subjects.
 
     r_kl = sum_t (y_k_t - mean_k)(y_l_t - mean_l)
@@ -269,12 +149,12 @@ def compute_r_kl_matrix(Y_dm: np.array) -> np.array:
 
     Parameters
     ----------
-    Y_dm : np.array, shape (N, T)
+    Y_dm : np.ndarray, shape (N, T)
         Demeaned projected signals
 
     Returns:
     -------
-    R : np.array, shape (N, N)
+    R : np.ndarray, shape (N, N)
         R[k, l] = r_kl
     """
     # Matrix multiplication gives all pairwise dot products
