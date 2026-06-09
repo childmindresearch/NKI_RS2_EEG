@@ -102,6 +102,32 @@ def compute_ISC_all_components(X, W, n_components=N_COMPONENTS):
 # ============================================================
 # FIT CORRCA TO GET W
 # ============================================================
+def within_subject_cov_old(X):
+    """
+    Within-subject covariance R_W, eq. (7).
+        R_W = sum_i sum_l (x_i^l - xbar_*^l)(x_i^l - xbar_*^l)^T
+
+    X : array (N, C, T)  -- N subjects, C channels, T timepoints
+    returns : (C, C) scatter matrix
+    """
+    #X = np.asarray(X, dtype=float)
+    Xc = X - X.mean(axis=2, keepdims=True)      # center each subject by its temporal mean
+    return np.einsum('lci,ldi->cd', Xc, Xc)
+
+def within_subject_cov(X):
+    """
+    Within-subject scatter R_W, eq. (7):
+        R_W = sum_l sum_i (x_i^l - xbar_*^l)(x_i^l - xbar_*^l)^T
+    X : array (N, C, T)
+    returns : (C, C) scatter matrix
+    """
+    N, C, T = X.shape
+    R_W = np.zeros((C, C), dtype=np.float64)
+    for l in range(N):                                  # sum over subjects l
+        Xl = np.asarray(X[l], dtype=np.float64)         # (C, T), one subject
+        Xc = Xl - Xl.mean(axis=1, keepdims=True)        # center by temporal mean xbar_*^l
+        R_W += Xc @ Xc.T                                # sum over i + outer product over c,d
+    return R_W
 
 def compute_Rw(X):
     N, D, T = X.shape
@@ -118,22 +144,23 @@ def compute_Rb(Rt, Rw, N):
     return (Rt - Rw) / (N - 1)
 
 def regularize(Rw, gamma=0.1):
-    D        = Rw.shape[0]
+    D = Rw.shape[0]
     mean_var = np.mean(np.diag(Rw))
     return (1 - gamma) * Rw + gamma * mean_var * np.identity(D)
 
 def fit_corrca(X, gamma=0.1):
     N, D, T      = X.shape
-    Rw           = compute_Rw(X)
-    Rt           = compute_Rt(X)
-    Rb           = compute_Rb(Rt, Rw, N)
-    Rw_reg       = regularize(Rw, gamma)
+    #Rw           = compute_Rw(X)
+    Rw = within_subject_cov(X)
+    Rt = compute_Rt(X)
+    Rb = compute_Rb(Rt, Rw, N)
+    Rw_reg = regularize(Rw, gamma)
     evals, evecs = eigh(Rb, Rw_reg)
-    evals        = np.real(evals)
-    evecs        = np.real(evecs)
-    sort_idx     = np.argsort(evals)[::-1]
-    evals        = evals[sort_idx]
-    evecs        = evecs[:, sort_idx]
+    evals = np.real(evals)
+    evecs = np.real(evecs)
+    sort_idx = np.argsort(evals)[::-1]
+    evals = evals[sort_idx]
+    evecs = evecs[:, sort_idx]
     return evecs, evals
 
 #%%
