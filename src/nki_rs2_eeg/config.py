@@ -23,6 +23,7 @@ FIGURES_DIR = ROOT_DIR / "figures"
 # Directory to save Derivatives
 #DERIVATIVES_DIR = ROOT_DIR / "data" / "derivatives"
 DERIVATIVES_DIR = Path("/data3/cdb/MOBI_LAB/NKI_RS2/EEG_derivatives")  # Update this path as needed
+CAP_DIR = Path("/home/bgonzalez/NKI_RS2_EEG/data/caps/captypes_clean.csv")
 SESSION_ID="MOBI1A"
 TASK_ID="passivepresent"
 RUN_ID="1"

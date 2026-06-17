@@ -1,8 +1,4 @@
 #%%
-from __future__ import annotations
-
-import argparse
-import json
 import logging
 import os
 
@@ -14,7 +10,6 @@ os.environ["VECLIB_MAXIMUM_THREADS"] = nthreads
 os.environ["NUMEXPR_NUM_THREADS"] = nthreads
 
 import pathlib
-from typing import Any
 from pathlib import Path
 import mne
 import mne_bids
@@ -22,21 +17,14 @@ import numpy as np
 import pandas as pd
 import pyprep
 from nki_rs2_eeg import read_file
-from nki_rs2_eeg.read_file import read_raw_nwb
-from nki_rs2_eeg.config import (
-    RAW_DATA_DIR,
-    DERIVATIVES_DIR,
-    SESSION_ID,
-    TASK_ID,
-    RUN_ID,
-    CHANNEL_NAMES,
-    FS,
-    LINE_NOISE_HZ,
-)
+from nki_rs2_eeg.config import ( RAW_DATA_DIR, DERIVATIVES_DIR)
+from bids_explorer.architecture.architecture import BidsArchitecture
+
+
 
 
 logger = logging.getLogger(__name__)
-
+#%%
 # ---------------------------------------------------------------------------
 # Paths (resolved relative to the repository root)
 # ---------------------------------------------------------------------------

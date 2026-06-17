@@ -8,7 +8,6 @@ import os
 import logging
 import pandas as pd
 
-
 logger = logging.getLogger(__name__)
 
 
@@ -27,7 +26,7 @@ def convert_signal(eeg_stream:dict) -> np.ndarray:
     return np.multiply(signals,unit_matrix)
 
 
-def read_raw_nwb(filename: str | os.PathLike) -> mne.io.Raw:
+def read_raw_nwb(filename: str | os.PathLike) -> tuple[mne.io.Raw, pd.DataFrame]:
     '''Read a raw NWB file and return an MNE Raw object.
     
     Parameters
@@ -64,7 +63,8 @@ def read_raw_nwb(filename: str | os.PathLike) -> mne.io.Raw:
     )
 
     raw = mne.io.RawArray(eeg_data.T*1e-6, info)
-
+    # TODO: TRY LOADING .bvef file for montage 
+    # TODO: check out LPA, RPA, Nz coordinates in the standardcoordinates.txt file on nki github
     coord = {
     item["group_name"].split(" ")[-1]: (
         item["x"]*1e-3,
@@ -95,7 +95,14 @@ def read_raw_nwb(filename: str | os.PathLike) -> mne.io.Raw:
     
     raw.set_annotations(annotations)
 
-    return raw, electrodes
+    try:
+        tstart = raw.annotations.onset[raw.annotations.description == "Onset Movie"][0]
+        tstop = raw.annotations.onset[raw.annotations.description == "Offset Movie"][0]
+        return raw.copy().crop(tmin=t_start, tmax=t_stop, reset_first_samp=True), electrodes
+    except Exception as e:
+        print(f"Error trimming data, event markers not found: {e}")
+
+
     
 # %%
 
