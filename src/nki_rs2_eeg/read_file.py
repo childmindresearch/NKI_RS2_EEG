@@ -7,6 +7,7 @@ from pynwb import NWBHDF5IO
 import os
 import logging
 import pandas as pd
+from nki_rs2_eeg.config import SALINE_CAP_DIR
 
 logger = logging.getLogger(__name__)
 
@@ -78,7 +79,7 @@ def read_raw_nwb(filename: str | os.PathLike) -> tuple[mne.io.Raw, pd.DataFrame]
     raw.set_meas_date(eeg_time[0])
     #montage = mne.channels.make_dig_montage(
      #   ch_pos = coord)
-    montage = mne.channels.read_custom_montage('/home/bgonzalez/NKI_RS2_EEG/data/caps/R-Net for BrainAmp_RNP-BA/RNP-BA-64.bvef')
+    montage = mne.channels.read_custom_montage(SALINE_CAP_DIR)
     raw.set_montage(montage)
     
 
