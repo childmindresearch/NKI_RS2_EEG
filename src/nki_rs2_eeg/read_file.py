@@ -76,8 +76,9 @@ def read_raw_nwb(filename: str | os.PathLike) -> tuple[mne.io.Raw, pd.DataFrame]
     
     
     raw.set_meas_date(eeg_time[0])
-    montage = mne.channels.make_dig_montage(
-        ch_pos = coord)
+    #montage = mne.channels.make_dig_montage(
+     #   ch_pos = coord)
+    montage = mne.channels.read_custom_montage('/home/bgonzalez/NKI_RS2_EEG/data/caps/R-Net for BrainAmp_RNP-BA/RNP-BA-64.bvef')
     raw.set_montage(montage)
     
 
@@ -94,10 +95,13 @@ def read_raw_nwb(filename: str | os.PathLike) -> tuple[mne.io.Raw, pd.DataFrame]
     )
     
     raw.set_annotations(annotations)
+    onsets = raw.annotations.onset
+    descriptions = raw.annotations.description
 
     try:
-        tstart = raw.annotations.onset[raw.annotations.description == "Onset Movie"][0]
-        tstop = raw.annotations.onset[raw.annotations.description == "Offset Movie"][0]
+        # Example: Get the onset time for the first occurrence of each
+        t_start = onsets[descriptions == "Onset Movie"][0]
+        t_stop = onsets[descriptions == "Offset Movie"][0]
         return raw.copy().crop(tmin=t_start, tmax=t_stop, reset_first_samp=True), electrodes
     except Exception as e:
         print(f"Error trimming data, event markers not found: {e}")
