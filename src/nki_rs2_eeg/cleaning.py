@@ -155,7 +155,7 @@ def combine_annotations(
     return sum(annotations_list, start=mne.Annotations([],[],[]))
 
 
-def save_bids_tree(raw_cleaned: mne.io.Raw, bids_path: mne_bids.BIDSPath) -> None:
+def save_bids_tree(raw_cleaned: mne.io.Raw, bids_path: mne_bids.BIDSPath, overwrite=False) -> None:
     """Save preprocessed EEG data in BIDS-compliant format.
     
     Writes the cleaned EEG data to a BIDS-compliant EDF file using the
@@ -173,7 +173,7 @@ def save_bids_tree(raw_cleaned: mne.io.Raw, bids_path: mne_bids.BIDSPath) -> Non
         bids_path=bids_path,
         allow_preload=True,
         format="EDF",
-        overwrite=True,
+        overwrite=overwrite,
     )
 #%%
 def set_nwb_channel_dataframe(
@@ -287,7 +287,7 @@ def full_pipeline(file: str, saving_bids_path: os.PathLike, overwrite = False) -
     saving_bids_path.mkdir()
     try:
         if theoretical_fname.is_file() and not overwrite:
-            return "Already Done"
+            return "Already Done - Not Overwritten"
         else:
             saving_bids_path.mkdir()
 
@@ -344,7 +344,7 @@ if __name__ == "__main__":
               "run":[],
               "message":[]
     }
-    filesofinsterest = list(RAW_DIR.rglob(rf'sub-*_ses-{SESSION_ID}_task-{TASK_ID}_run-{RUN_ID}_MoBI.nwb'))
+    
 
     for file in filesofinsterest[5:]:
 

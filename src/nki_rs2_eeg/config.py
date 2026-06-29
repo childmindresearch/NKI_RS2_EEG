@@ -3,7 +3,6 @@
 import os
 from pathlib import Path
 
-
 #=================
 # Paths
 #=================
@@ -11,7 +10,7 @@ from pathlib import Path
 # Root directory of the repository
 ROOT_DIR = Path(__file__).parent.parent.parent
 
-
+LOG_PATH = Path("/home/bgonzalez/NKI_RS2_EEG/proc.txt")
 # Directory containing raw NWB files
 #RAW_DATA_DIR = ROOT_DIR / "data" / "raw"
 RAW_DATA_DIR = Path("/data3/cdb/MOBI_LAB/NKI_RS2/ET_DATA/")  # Update this path as needed
@@ -24,10 +23,11 @@ FIGURES_DIR = ROOT_DIR / "figures"
 #DERIVATIVES_DIR = ROOT_DIR / "data" / "derivatives"
 DERIVATIVES_DIR = Path("/data3/cdb/MOBI_LAB/NKI_RS2/EEG_derivatives")  # Update this path as needed
 
-#CAP_DIR = Path("/home/bgonzalez/NKI_RS2_EEG/data/caps/captypes_clean.csv")
-CAP_DIR = Path("/Users/bryan.gonzalez/NKI_RS2_EEG/data/caps/captypes_clean.csv")
-SALINE_CAP_DIR = Path("/Users/bryan.gonzalez/NKI_RS2_EEG/data/caps/R-Net for BrainAmp_RNP-BA/RNP-BA-64.bvef")
-#SALINE_CAP_DIR = Path("/home/bgonzalez/NKI_RS2_EEG/data/caps/R-Net for BrainAmp_RNP-BA/RNP-BA-64.bvef")
+CAP_DIR = Path("/home/bgonzalez/NKI_RS2_EEG/data/caps/captypes_clean.csv")
+#CAP_DIR = Path("/Users/bryan.gonzalez/NKI_RS2_EEG/data/caps/captypes_clean.csv")
+#SALINE_CAP_DIR = Path("/Users/bryan.gonzalez/NKI_RS2_EEG/data/caps/R-Net for BrainAmp_RNP-BA/RNP-BA-64.bvef")
+SALINE_CAP_DIR = Path("/home/bgonzalez/NKI_RS2_EEG/data/caps/R-Net for BrainAmp_RNP-BA/RNP-BA-64.bvef")
+GEL_CAP_DIR = Path("/home/bgonzalez/NKI_RS2_EEG/data/caps/BC-MR-64-X52.bvef")
 
 SESSION_ID="MOBI1A"
 TASK_ID="passivepresent"

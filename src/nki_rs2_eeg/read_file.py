@@ -7,7 +7,7 @@ from pynwb import NWBHDF5IO
 import os
 import logging
 import pandas as pd
-from nki_rs2_eeg.config import SALINE_CAP_DIR
+from nki_rs2_eeg.config import SALINE_CAP_DIR, CAP_DIR, GEL_CAP_DIR
 
 logger = logging.getLogger(__name__)
 
@@ -27,7 +27,7 @@ def convert_signal(eeg_stream:dict) -> np.ndarray:
     return np.multiply(signals,unit_matrix)
 
 
-def read_raw_nwb(filename: str | os.PathLike) -> tuple[mne.io.Raw, pd.DataFrame]:
+def read_raw_nwb(filename: os.PathLike) -> tuple[mne.io.Raw, pd.DataFrame]:
     '''Read a raw NWB file and return an MNE Raw object.
     
     Parameters
@@ -50,63 +50,71 @@ def read_raw_nwb(filename: str | os.PathLike) -> tuple[mne.io.Raw, pd.DataFrame]
         elec_names = nwbfile.acquisition["ElectricalSeries"].description[:]
         events_name = nwbfile.acquisition["StimLabels"].data[:]
         events_onset = nwbfile.acquisition["StimLabels"].timestamps[:]
-        
-    datetime_times = [
-        datetime.fromtimestamp(t) for t in eeg_time
-    ]
-    first_time_step = datetime_times[1] - datetime_times[0]
-    sfreq = 1e6 / first_time_step.microseconds
 
-    info = mne.create_info(
-        ch_names = elec_names.split(","),
-        sfreq = sfreq,
-        ch_types = "eeg"
-    )
+    try: 
+        datetime_times = [
+            datetime.fromtimestamp(t) for t in eeg_time
+        ]
+        first_time_step = datetime_times[1] - datetime_times[0]
+        sfreq = 1e6 / first_time_step.microseconds
 
-    raw = mne.io.RawArray(eeg_data.T*1e-6, info)
-    # TODO: TRY LOADING .bvef file for montage 
-    # TODO: check out LPA, RPA, Nz coordinates in the standardcoordinates.txt file on nki github
-    coord = {
-    item["group_name"].split(" ")[-1]: (
-        item["x"]*1e-3,
-        item["y"]*1e-3,
-        item["z"]*1e-3 
+        info = mne.create_info(
+            ch_names = elec_names.split(","),
+            sfreq = sfreq,
+            ch_types = "eeg"
         )
-    for _, item in electrodes.iterrows()
-    }
-    
-    
-    raw.set_meas_date(eeg_time[0])
-    #montage = mne.channels.make_dig_montage(
-     #   ch_pos = coord)
-    montage = mne.channels.read_custom_montage(SALINE_CAP_DIR)
-    raw.set_montage(montage)
-    
 
-    eeg_start = datetime.fromtimestamp(eeg_time[0])
-    delta = [datetime.fromtimestamp(t) - eeg_start for t in events_onset]
-    onset = [d.total_seconds() for d in delta]
-    duration = np.zeros_like(onset)
+        raw = mne.io.RawArray(eeg_data.T*1e-6, info)
+        
+        coord = {
+        item["group_name"].split(" ")[-1]: (
+            item["x"]*1e-3,
+            item["y"]*1e-3,
+            item["z"]*1e-3 
+            )
+        for _, item in electrodes.iterrows()
+        }
+        
+        
+        raw.set_meas_date(eeg_time[0])
+        #montage = mne.channels.make_dig_montage(ch_pos = coord)
+        montage = mne.channels.read_custom_montage(get_montage_file_dir(filename.parts[-3]))
+        raw.set_montage(montage)
+        
 
-    annotations = mne.Annotations(
-        onset=onset,
-        duration=duration,
-        description=[name[0] for name in events_name],
-        orig_time=raw.info["meas_date"]
-    )
-    
-    raw.set_annotations(annotations)
-    onsets = raw.annotations.onset
-    descriptions = raw.annotations.description
+        eeg_start = datetime.fromtimestamp(eeg_time[0])
+        delta = [datetime.fromtimestamp(t) - eeg_start for t in events_onset]
+        onset = [d.total_seconds() for d in delta]
+        duration = np.zeros_like(onset)
+
+        annotations = mne.Annotations(
+            onset=onset,
+            duration=duration,
+            description=[name[0] for name in events_name],
+            orig_time=raw.info["meas_date"]
+        )
+        
+        raw.set_annotations(annotations)
+        onsets = raw.annotations.onset
+        descriptions = raw.annotations.description
+    except Exception as e:
+        print(f"Error reading data: {e}")
 
     try:
-        # Example: Get the onset time for the first occurrence of each
+        # trimming
         t_start = onsets[descriptions == "Onset Movie"][0]
         t_stop = onsets[descriptions == "Offset Movie"][0]
         return raw.copy().crop(tmin=t_start, tmax=t_stop, reset_first_samp=True), electrodes
     except Exception as e:
         print(f"Error trimming data, event markers not found: {e}")
 
+
+def get_montage_file_dir(subject_id:str):
+    caps = pd.read_csv(CAP_DIR)
+    if caps.loc[caps.a_number == subject_id].cap_type.values[0] == 'RNP-BA-64.bvef':
+        return SALINE_CAP_DIR
+    if caps.loc[caps.a_number == subject_id].cap_type.values[0] in [caps.loc[caps.a_number == subject_id].cap_type.values[0]]:
+        return GEL_CAP_DIR
 
     
 # %%
