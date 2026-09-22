@@ -100,6 +100,7 @@ def read_raw_nwb(filename: os.PathLike) -> tuple[mne.io.Raw, pd.DataFrame]:
     except Exception as e:
         print(f"Error reading data: {e}")
 
+    '''
     try:
         # trimming
         t_start = onsets[descriptions == "Onset Movie"][0]
@@ -107,7 +108,8 @@ def read_raw_nwb(filename: os.PathLike) -> tuple[mne.io.Raw, pd.DataFrame]:
         return raw.copy().crop(tmin=t_start, tmax=t_stop, reset_first_samp=True), electrodes
     except Exception as e:
         print(f"Error trimming data, event markers not found: {e}")
-
+    '''
+    return raw, electrodes
 
 def get_montage_file_dir(subject_id:str):
     caps = pd.read_csv(CAP_DIR)
@@ -117,7 +119,7 @@ def get_montage_file_dir(subject_id:str):
         return GEL_CAP_DIR
 
     
-# %%
+ # %%
 
 def read_processed_edf(filename: str | os.PathLike) -> mne.io.Raw:
     """Read a processed EDF file and return an MNE Raw object.
