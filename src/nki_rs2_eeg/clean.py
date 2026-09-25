@@ -25,8 +25,6 @@ os.environ["NUMEXPR_NUM_THREADS"] = nthreads
 
 
 logger = logging.getLogger(__name__)
-#%%
-# Get only present and sherlock .nwb files
 
 #%%
 
@@ -46,7 +44,7 @@ def run_prep(raw: mne.io.Raw) -> pyprep.PrepPipeline:
         pyprep.PrepPipeline: The fitted PREP pipeline object containing
                              the cleaned data and preprocessing information.
     """
-    raw.filter(l_freq=0, h_freq=125).resample(500)
+    raw.filter(l_freq=0.5, h_freq=125).resample(500)
     prep_params = {
         "ref_chs": "eeg",
         "reref_chs": "eeg",
@@ -208,7 +206,7 @@ def save_nwb_channels_info(
         channel_info_fname, sep="\t", index_col=["name"]
     )
 
-    result = channel_info_dataframe.join(channel_dataframe, how="outer")
+    result = pd.merge(channel_info_dataframe, channel_dataframe, on="name")
     values_to_replace = result.loc[~result["type"].isna().values]
     columns_to_fill = [
         "type",
@@ -281,7 +279,7 @@ def full_pipeline(nwb_path, saving_bids_path,  overwrite=False):
         annotations = combine_annotations([
             blinks_annotations,
             muscle_annotations,
-            raw.annotations,
+            raw_cleaned.annotations,
             ])
 
         raw_cleaned.set_annotations(annotations)
@@ -291,6 +289,11 @@ def full_pipeline(nwb_path, saving_bids_path,  overwrite=False):
     try:
         raw_cleaned = regress_blinks(raw_cleaned)
         save_bids_tree(raw_cleaned, saving_bids_path)
+
+        # TODO: re-arrange the rows of the channels df so that is matches the order of the edf data header
+
+
+
         save_nwb_channels_info(channels, prep_output, saving_bids_path)
     except Exception as e:
         return str(e)
@@ -318,7 +321,7 @@ if __name__ == "__main__":
               "run":[],
               "message":[]
     }
-    movies = ["passivepresent", "passivesherlock"]
+    movies = ["passivepresent"]
     pattern = re.compile("|".join(map(re.escape, movies)))
     nwb_files = [
         Path(os.path.join(dirpath, name))
@@ -327,10 +330,10 @@ if __name__ == "__main__":
         if pattern.search(name) and name.endswith("_MoBI.nwb")
     ]
 
-    for i, nwb_path in enumerate(nwb_files[:2]):
+    for i, nwb_path in enumerate(nwb_files[10:]):
         print("========================")
         print(" ")
-        print(f"processing complete: {(i/len(nwb_files))*100:.02f}%")
+        print(f"processing complete: {(i/len(nwb_files[10:]))*100:.02f}%")
         print(" ")
         print("========================")
         file_parts = nwb_path.parts[-1].split('_')
@@ -345,8 +348,8 @@ if __name__ == "__main__":
                         datatype="eeg",
                         task=report['task'][-1],
                         run='0'+str(int(report['run'][-1])), #bc inconsistent file names (e.g. 001, 1, 01)
-                        suffix='eeg'
                     ) 
+            
             message = full_pipeline(nwb_path, saving_bids_path)
             report["message"].append(message)
         except Exception as e:
