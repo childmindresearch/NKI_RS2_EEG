@@ -7,7 +7,7 @@ from pynwb import NWBHDF5IO
 import os
 import logging
 import pandas as pd
-from nki_rs2_eeg.config import SALINE_CAP_DIR, CAP_DIR, GEL_CAP_DIR
+from nki_rs2_eeg.config import GEL_CAP_DIR2, SALINE_CAP_DIR, CAP_DIR, GEL_CAP_DIR
 
 logger = logging.getLogger(__name__)
 
@@ -80,7 +80,8 @@ def read_raw_nwb(filename: os.PathLike) -> tuple[mne.io.Raw, pd.DataFrame]:
         #montage = mne.channels.make_dig_montage(ch_pos = coord)
         montage = mne.channels.read_custom_montage(get_montage_file_dir(filename.parts[-3]))
         raw.set_montage(montage)
-        
+        raw.drop_channels(["EOGL", "EOGU", "ECG"], on_missing="ignore")
+
 
         eeg_start = datetime.fromtimestamp(eeg_time[0])
         delta = [datetime.fromtimestamp(t) - eeg_start for t in events_onset]
@@ -106,7 +107,9 @@ def get_montage_file_dir(subject_id:str):
     caps = pd.read_csv(CAP_DIR)
     if caps.loc[caps.a_number == subject_id].cap_type.values[0] == 'RNP-BA-64.bvef':
         return SALINE_CAP_DIR
-    if caps.loc[caps.a_number == subject_id].cap_type.values[0] in [caps.loc[caps.a_number == subject_id].cap_type.values[0]]:
+    elif caps.loc[caps.a_number == subject_id].cap_type.values[0] == 'BC-MR-64.bvef':
+        return GEL_CAP_DIR2
+    elif caps.loc[caps.a_number == subject_id].cap_type.values[0] == 'BC-MR-64-X52.bvef':
         return GEL_CAP_DIR
 
     
